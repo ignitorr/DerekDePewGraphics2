@@ -25,6 +25,7 @@ using namespace std;
 
 // TODO: PART 1 STEP 1b
 #include <DirectXMath.h>
+using namespace DirectX;
 
 // TODO: PART 2 STEP 6
 #include "Trivial_VS.csh"
@@ -90,12 +91,34 @@ class DEMO_APP
 
 
 	DirectX::XMFLOAT2 vel = { 1.0f, 0.5f };
+
+	ID3D11Buffer *cubeBuffer;
+	D3D11_BUFFER_DESC cubeBD = {};
+
+	ID3D11Buffer *sceneBuffer;
+	D3D11_BUFFER_DESC sceneBD = {};
+
+	struct MATRIX_DATA
+	{
+		XMFLOAT4X4 view;
+		XMFLOAT4X4 proj;
+	};
+
+	MATRIX_DATA mData;
+
 public:
 	// BEGIN PART 2
 	// TODO: PART 2 STEP 1
 	struct SIMPLE_VERTEX
 	{
 		DirectX::XMFLOAT2 xy;
+	};
+
+	struct TEST_VERTEX
+	{
+		DirectX::XMFLOAT3 pos;
+		DirectX::XMFLOAT4 rgba;
+		
 	};
 	
 	DEMO_APP(HINSTANCE hinst, WNDPROC proc);
@@ -205,17 +228,6 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	// TODO: PART 5 STEP 2a
 	SIMPLE_VERTEX gridVerts[6 * 200];
 
-	//TEST GRID
-	/*
-	SIMPLE_VERTEX gridVerts[6];
-	gridVerts[0].xy = { -0.2f, 0.2f };
-	gridVerts[1].xy = { 0.2f, -0.2f };
-	gridVerts[2].xy = { -0.2f, -0.2f };
-				
-	gridVerts[3].xy = { -0.2f, 0.2f };
-	gridVerts[4].xy = { 0.2f, 0.2f };
-	gridVerts[5].xy = { 0.2f, -0.2f };
-	*/
 	// TODO: PART 5 STEP 2b
 	
 	for (int y = 0; y < 20; y++)
@@ -243,6 +255,40 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 			gridVerts[index + 5].xy = { curX + 0.1f, curY - 0.1f };
 		}
 	}
+
+
+	// G2 CUBE
+	TEST_VERTEX cube[] =
+	{
+		{ XMFLOAT3(-0.5f, 0.5f,-0.5f), XMFLOAT4(0, 1.0f, 0, 1.0f) },
+		{ XMFLOAT3(0.5f, 0.5f,-0.5f), XMFLOAT4(0, 1.0f, 0, 1.0f) },
+		{ XMFLOAT3(0.5f,-0.5f,-0.5f), XMFLOAT4(0, 1.0f, 0, 1.0f) },
+		{ XMFLOAT3(-0.5f,-0.5f,-0.5f), XMFLOAT4(0, 1.0f, 0, 1.0f) },
+
+		{ XMFLOAT3(-0.5f, 0.5f, 0.5f), XMFLOAT4(0, 1.0f, 0, 1.0f) },
+		{ XMFLOAT3(0.5f, 0.5f, 0.5f), XMFLOAT4(0, 1.0f, 0, 1.0f) },
+		{ XMFLOAT3(0.5f,-0.5f, 0.5f), XMFLOAT4(0, 1.0f, 0, 1.0f) },
+		{ XMFLOAT3(-0.5f,-0.5f, 0.5f), XMFLOAT4(0, 1.0f, 0, 1.0f) },
+	};
+	short cubeInd[] =
+	{
+		0,1,3, 3,1,2,
+		0,4,5, 0,5,1,
+		1,5,2, 2,5,6,
+		4,0,7, 7,0,3,
+		7,3,2, 7,2,6,
+		5,4,6, 6,4,7
+	};
+	D3D11_SUBRESOURCE_DATA cubeBufferData = { 0 };
+	cubeBufferData.pSysMem = cube;
+
+	cubeBD.Usage = D3D11_USAGE_IMMUTABLE;
+	cubeBD.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	cubeBD.CPUAccessFlags = NULL;
+	cubeBD.ByteWidth = sizeof(short) * 36;
+
+	XMMATRIX view = XMLoadFloat4x4(&mData.view);
+	XMMatrix
 	
 	// TODO: PART 5 STEP 3
 
