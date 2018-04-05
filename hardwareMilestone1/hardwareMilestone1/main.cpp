@@ -44,22 +44,40 @@ class DEMO_APP
 	WNDPROC							appWndProc;
 	HWND							window;
 	// TODO: PART 1 STEP 2
-	ID3D11Device *device;
-	IDXGISwapChain *swap;
-	ID3D11RenderTargetView *rtv;
-	ID3D11DeviceContext *context;
-	D3D11_VIEWPORT viewport;
 
-	DXGI_SWAP_CHAIN_DESC sd = {};
 
+	/////////////////////////////
+	//						   //
+	// GRAPHICS 2 PROJECT VARS //
+	//						   //
+	/////////////////////////////
+
+	ID3D11Device				*device;
+	IDXGISwapChain				*swap;
+	ID3D11RenderTargetView		*rtv;
+	ID3D11DeviceContext			*context;
+	ID3D11InputLayout			*inputLayout;
+	ID3D11VertexShader			*vs;
+	ID3D11PixelShader			*ps;
+	ID3D11Buffer				*buffer;
+	ID3D11Buffer				*vertexBuffer;
+	ID3D11Buffer				*indexBuffer;
+	ID3D11Buffer				*constantBuffer;
 	
-	
-	// TODO: PART 2 STEP 2
-	ID3D11Buffer *buffer;
-	unsigned int vertCount = 0;
-	D3D11_BUFFER_DESC bd = {};
+	D3D11_VIEWPORT				viewport;
 
-	ID3D11InputLayout *inputLayout;
+
+	XMMATRIX					worldM;
+	XMMATRIX					viewM;
+	XMMATRIX					projM;
+	
+
+
+
+	DXGI_SWAP_CHAIN_DESC		sd = {};
+	D3D11_BUFFER_DESC			bd = {};
+
+
 
 	
 	// BEGIN PART 5
@@ -67,10 +85,7 @@ class DEMO_APP
 	ID3D11Buffer *boardBuffer;
 	unsigned int boardCount = 0;
 	D3D11_BUFFER_DESC bbd = {};
-	
-	// TODO: PART 2 STEP 4
-	ID3D11VertexShader *vs;
-	ID3D11PixelShader *ps;
+
 	// BEGIN PART 3
 	// TODO: PART 3 STEP 1
 	ID3D11Buffer *cBuffer;
@@ -98,13 +113,6 @@ class DEMO_APP
 	ID3D11Buffer *sceneBuffer;
 	D3D11_BUFFER_DESC sceneBD = {};
 
-	struct MATRIX_DATA
-	{
-		XMFLOAT4X4 view;
-		XMFLOAT4X4 proj;
-	};
-
-	MATRIX_DATA mData;
 
 public:
 	// BEGIN PART 2
@@ -120,6 +128,15 @@ public:
 		DirectX::XMFLOAT4 rgba;
 		
 	};
+
+	struct MATRIX_DATA
+	{
+		XMMATRIX world;
+		XMMATRIX view;
+		XMMATRIX proj;
+	};
+
+	MATRIX_DATA mData;
 	
 	DEMO_APP(HINSTANCE hinst, WNDPROC proc);
 	bool Run();
@@ -199,6 +216,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	viewport.TopLeftX = 0;
 	viewport.TopLeftY = 0;
 	// TODO: PART 2 STEP 3a
+	/*
 	SIMPLE_VERTEX circleVerts[361];
 	for (int i = 0; i <= 360; i++)
 	{
@@ -255,9 +273,17 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 			gridVerts[index + 5].xy = { curX + 0.1f, curY - 0.1f };
 		}
 	}
+	*/
 
+	//************************************************************
+	//************ GRAPHICS 2 CODE *******************************
+	//************************************************************
 
-	// G2 CUBE
+	// create shaders
+	device->CreateVertexShader(Trivial_VS, sizeof(Trivial_VS), NULL, &vs);
+	device->CreatePixelShader(Trivial_PS, sizeof(Trivial_PS), NULL, &ps);
+
+	// create cube data and set vertex buffer
 	TEST_VERTEX cube[] =
 	{
 		{ XMFLOAT3(-0.5f, 0.5f,-0.5f), XMFLOAT4(0, 1.0f, 0, 1.0f) },
@@ -270,6 +296,18 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 		{ XMFLOAT3(0.5f,-0.5f, 0.5f), XMFLOAT4(0, 1.0f, 0, 1.0f) },
 		{ XMFLOAT3(-0.5f,-0.5f, 0.5f), XMFLOAT4(0, 1.0f, 0, 1.0f) },
 	};
+	ZeroMemory(&cubeBD, sizeof(cubeBD));
+	cubeBD.Usage = D3D11_USAGE_IMMUTABLE;
+	cubeBD.ByteWidth = sizeof(TEST_VERTEX) * 8;
+	cubeBD.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	cubeBD.CPUAccessFlags = NULL;
+
+	D3D11_SUBRESOURCE_DATA cubeBufferData;
+	ZeroMemory(&cubeBufferData, sizeof(cubeBufferData));
+	cubeBufferData.pSysMem = cube;
+	device->CreateBuffer(&cubeBD, &cubeBufferData, &vertexBuffer);
+
+	// create index buffer
 	short cubeInd[] =
 	{
 		0,1,3, 3,1,2,
@@ -279,19 +317,49 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 		7,3,2, 7,2,6,
 		5,4,6, 6,4,7
 	};
-	D3D11_SUBRESOURCE_DATA cubeBufferData = { 0 };
-	cubeBufferData.pSysMem = cube;
 
 	cubeBD.Usage = D3D11_USAGE_IMMUTABLE;
 	cubeBD.BindFlags = D3D11_BIND_INDEX_BUFFER;
 	cubeBD.CPUAccessFlags = NULL;
 	cubeBD.ByteWidth = sizeof(short) * 36;
 
-	XMMATRIX view = XMLoadFloat4x4(&mData.view);
-	XMMatrix
+	cubeBufferData.pSysMem = cubeInd;
+
+	device->CreateBuffer(&cubeBD, &cubeBufferData, &indexBuffer);
+
+	//context->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R16_UINT, 0);
+	// create NEW constant buffer
+	cubeBD.Usage = D3D11_USAGE_DYNAMIC;
+	cubeBD.ByteWidth = sizeof(MATRIX_DATA);
+	cubeBD.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	cubeBD.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+
+	device->CreateBuffer(&cubeBD, NULL, &constantBuffer);
+
+	// create matrices
+	worldM = XMMatrixIdentity();
+
+	// view matrix & proj, REPLACE THIS!!!
+	/*
+	XMVECTOR Eye = XMVectorSet(0.0f, 3.0f, -5.0f, 0.0f);
+	XMVECTOR At = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	XMVECTOR Up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	viewM = XMMatrixLookAtLH(Eye, At, Up);
+	*/
+	viewM = XMMATRIX(
+		-1.00000000f, 0.00000000f, 0.00000000f, 0.00000000f,
+		0.00000000f, 0.89442718f, 0.44721359f, 0.00000000f,
+		0.00000000f, 0.44721359f, -0.89442718f, -2.23606800f,
+		0.00000000f, 0.00000000f, 0.00000000f, 1.00000000f);
+	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(75), BACKBUFFER_WIDTH / (FLOAT)BACKBUFFER_HEIGHT, 0.01f, 100.0f);
+
+
+	//************************************************************
+	//************ END GRAPHICS 2 CODE ***************************
+	//************************************************************
 	
 	// TODO: PART 5 STEP 3
-
+	/*
 	bbd.Usage = D3D11_USAGE_IMMUTABLE;
 	bbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	bbd.CPUAccessFlags = NULL;
@@ -301,19 +369,24 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	bBufferData.pSysMem = gridVerts;
 
 	device->CreateBuffer(&bbd, &bBufferData, &boardBuffer);
+	*/
 	// TODO: PART 2 STEP 5
 	// ADD SHADERS TO PROJECT, SET BUILD OPTIONS & COMPILE
 
 	// TODO: PART 2 STEP 7
-	device->CreateVertexShader(Trivial_VS, sizeof(Trivial_VS), NULL, &vs);
-	device->CreatePixelShader(Trivial_PS, sizeof(Trivial_PS), NULL, &ps);
+	//device->CreateVertexShader(Trivial_VS, sizeof(Trivial_VS), NULL, &vs);
+	//device->CreatePixelShader(Trivial_PS, sizeof(Trivial_PS), NULL, &ps);
 	
 	// TODO: PART 2 STEP 8a
-	D3D11_INPUT_ELEMENT_DESC vLayout =
-	{ "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 };
+	D3D11_INPUT_ELEMENT_DESC vLayout[] =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 }
+	};
 	// TODO: PART 2 STEP 8b
-	device->CreateInputLayout(&vLayout, 1, Trivial_VS, sizeof(Trivial_VS), &inputLayout);
+	device->CreateInputLayout(vLayout, ARRAYSIZE(vLayout), Trivial_VS, sizeof(Trivial_VS), &inputLayout);
 	// TODO: PART 3 STEP 3
+	/*
 	cbd.Usage = D3D11_USAGE_DYNAMIC;
 	cbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	cbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
@@ -323,6 +396,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	// TODO: PART 3 STEP 4b
 	toShader.constantOffset = { 0, 0 };
 	toShader.constantColor = { 1.0f, 1.0f, 0.0f, 1.0f };
+	*/
 }
 
 //************************************************************
@@ -334,6 +408,7 @@ bool DEMO_APP::Run()
 	// TODO: PART 4 STEP 2	
 	timer.Signal();
 	// TODO: PART 4 STEP 3
+	/*
 	toShader.constantOffset.x += vel.x * timer.Delta();
 	toShader.constantOffset.y += vel.y * timer.Delta();
 
@@ -346,6 +421,7 @@ bool DEMO_APP::Run()
 	{
 		vel.y = -vel.y;
 	}
+	*/
 	// END PART 4
 
 	// TODO: PART 1 STEP 7a
@@ -356,6 +432,38 @@ bool DEMO_APP::Run()
 	// TODO: PART 1 STEP 7c
 	FLOAT color[4] = { 0.0, 0.0f, 0.4f, 1.0f };
 	context->ClearRenderTargetView(rtv, color);
+
+	worldM = XMMatrixRotationY(timer.Delta());
+
+	MATRIX_DATA mData;
+	mData.world = worldM;
+	mData.view = viewM;
+	mData.proj = projM;
+	
+	D3D11_MAPPED_SUBRESOURCE cSub;
+	context->Map(constantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &cSub);
+	memcpy(cSub.pData, &mData, sizeof(mData));
+	context->Unmap(constantBuffer, NULL);
+	
+
+	UINT stride = sizeof(TEST_VERTEX);
+	UINT offset = 0;
+
+	context->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
+	context->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R16_UINT, 0);
+	context->IASetInputLayout(inputLayout);
+	context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	//context->UpdateSubresource(constantBuffer, 0, nullptr, &mData, 0, 0);
+
+	context->VSSetShader(vs, 0, 0);
+	context->VSSetConstantBuffers(0, 1, &constantBuffer);
+	context->PSSetShader(ps, 0, 0);
+
+	context->DrawIndexed(36, 0, 0);
+
+
+	/*
 	// TODO: PART 5 STEP 4
 	toGrid.constantOffset = { 0, 0 };
 	toGrid.constantColor = { 0.0f, 0.0f, 0.0f, 1.0f };
@@ -398,6 +506,7 @@ bool DEMO_APP::Run()
 	context->PSSetShader(ps, 0, 0);
 	context->Draw(361, 0);
 	// END PART 2
+	*/
 
 	// TODO: PART 1 STEP 8
 	swap->Present(0, 0);

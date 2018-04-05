@@ -1,27 +1,37 @@
+#pragma pack_matrix( row_major )
+
 struct INPUT_VERTEX
 {
-	float2 coordinate : POSITION;
+	float3 pos : POSITION;
+	float4 color : COLOR;
 };
 
 struct OUTPUT_VERTEX
 {
-	float4 colorOut : COLOR;
-	float4 projectedCoordinate : SV_POSITION;
+	float4 pos : SV_POSITION;
+	float4 color : COLOR;
 };
 
 // TODO: PART 3 STEP 2a
-cbuffer THIS_IS_VRAM : register( b0 )
+cbuffer MATRIX_DATA : register( b0 )
 {
-	float4 constantColor;
-	float2 constantOffset;
-	float2 padding;
+	matrix world;
+	matrix view;
+	matrix proj;
 };
 
-OUTPUT_VERTEX main( INPUT_VERTEX fromVertexBuffer )
+OUTPUT_VERTEX main( INPUT_VERTEX input )
 {
-	OUTPUT_VERTEX sendToRasterizer = (OUTPUT_VERTEX)0;
-	sendToRasterizer.projectedCoordinate.w = 1;
+	OUTPUT_VERTEX output = (OUTPUT_VERTEX)0;
+	output.pos = (input.pos, 1);
 	
+	output.pos = mul(output.pos, world);
+	output.pos = mul(output.pos, view);
+	output.pos = mul(output.pos, proj);
+	output.color = input.color;
+	//sendToRasterizer.color = fromVertexBuffer.color;
+
+	/*
 	sendToRasterizer.projectedCoordinate.xy = fromVertexBuffer.coordinate.xy;
 		
 	// TODO : PART 4 STEP 4
@@ -30,6 +40,7 @@ OUTPUT_VERTEX main( INPUT_VERTEX fromVertexBuffer )
 	// TODO : PART 3 STEP 7
 	sendToRasterizer.colorOut = constantColor;
 	// END PART 3
+	*/
 
-	return sendToRasterizer;
+	return output;
 }
