@@ -102,7 +102,14 @@ class DEMO_APP
 	SEND_TO_VRAM toShader;
 	SEND_TO_VRAM toGrid;
 
+	struct MATRIX_DATA
+	{
+		XMMATRIX world;
+		XMMATRIX view;
+		XMMATRIX proj;
+	};
 
+	MATRIX_DATA mData;
 
 
 	DirectX::XMFLOAT2 vel = { 1.0f, 0.5f };
@@ -129,14 +136,6 @@ public:
 		
 	};
 
-	struct MATRIX_DATA
-	{
-		XMMATRIX world;
-		XMMATRIX view;
-		XMMATRIX proj;
-	};
-
-	MATRIX_DATA mData;
 	
 	DEMO_APP(HINSTANCE hinst, WNDPROC proc);
 	bool Run();
@@ -283,7 +282,16 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	device->CreateVertexShader(Trivial_VS, sizeof(Trivial_VS), NULL, &vs);
 	device->CreatePixelShader(Trivial_PS, sizeof(Trivial_PS), NULL, &ps);
 
-	// create cube data and set vertex buffer
+	// create inputlayout
+	D3D11_INPUT_ELEMENT_DESC vLayout[] =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 }
+	};
+	// TODO: PART 2 STEP 8b
+	device->CreateInputLayout(vLayout, ARRAYSIZE(vLayout), Trivial_VS, sizeof(Trivial_VS), &inputLayout);
+
+	// create cube data
 	TEST_VERTEX cube[] =
 	{
 		{ XMFLOAT3(-0.5f, 0.5f,-0.5f), XMFLOAT4(0, 1.0f, 0, 1.0f) },
@@ -296,6 +304,16 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 		{ XMFLOAT3(0.5f,-0.5f, 0.5f), XMFLOAT4(0, 1.0f, 0, 1.0f) },
 		{ XMFLOAT3(-0.5f,-0.5f, 0.5f), XMFLOAT4(0, 1.0f, 0, 1.0f) },
 	};
+	short cubeInd[] =
+	{
+		0,1,3, 3,1,2,
+		0,4,5, 0,5,1,
+		1,5,2, 2,5,6,
+		4,0,7, 7,0,3,
+		7,3,2, 7,2,6,
+		5,4,6, 6,4,7
+	};
+	// set vertex buffer
 	ZeroMemory(&cubeBD, sizeof(cubeBD));
 	cubeBD.Usage = D3D11_USAGE_IMMUTABLE;
 	cubeBD.ByteWidth = sizeof(TEST_VERTEX) * 8;
@@ -308,15 +326,6 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	device->CreateBuffer(&cubeBD, &cubeBufferData, &vertexBuffer);
 
 	// create index buffer
-	short cubeInd[] =
-	{
-		0,1,3, 3,1,2,
-		0,4,5, 0,5,1,
-		1,5,2, 2,5,6,
-		4,0,7, 7,0,3,
-		7,3,2, 7,2,6,
-		5,4,6, 6,4,7
-	};
 
 	cubeBD.Usage = D3D11_USAGE_IMMUTABLE;
 	cubeBD.BindFlags = D3D11_BIND_INDEX_BUFFER;
@@ -340,17 +349,11 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	worldM = XMMatrixIdentity();
 
 	// view matrix & proj, REPLACE THIS!!!
-	/*
 	XMVECTOR Eye = XMVectorSet(0.0f, 3.0f, -5.0f, 0.0f);
 	XMVECTOR At = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 	XMVECTOR Up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 	viewM = XMMatrixLookAtLH(Eye, At, Up);
-	*/
-	viewM = XMMATRIX(
-		-1.00000000f, 0.00000000f, 0.00000000f, 0.00000000f,
-		0.00000000f, 0.89442718f, 0.44721359f, 0.00000000f,
-		0.00000000f, 0.44721359f, -0.89442718f, -2.23606800f,
-		0.00000000f, 0.00000000f, 0.00000000f, 1.00000000f);
+
 	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(75), BACKBUFFER_WIDTH / (FLOAT)BACKBUFFER_HEIGHT, 0.01f, 100.0f);
 
 
@@ -378,13 +381,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	//device->CreatePixelShader(Trivial_PS, sizeof(Trivial_PS), NULL, &ps);
 	
 	// TODO: PART 2 STEP 8a
-	D3D11_INPUT_ELEMENT_DESC vLayout[] =
-	{
-		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 }
-	};
-	// TODO: PART 2 STEP 8b
-	device->CreateInputLayout(vLayout, ARRAYSIZE(vLayout), Trivial_VS, sizeof(Trivial_VS), &inputLayout);
+	
 	// TODO: PART 3 STEP 3
 	/*
 	cbd.Usage = D3D11_USAGE_DYNAMIC;
@@ -433,7 +430,7 @@ bool DEMO_APP::Run()
 	FLOAT color[4] = { 0.0, 0.0f, 0.4f, 1.0f };
 	context->ClearRenderTargetView(rtv, color);
 
-	worldM = XMMatrixRotationY(timer.Delta());
+	//worldM = XMMatrixRotationY(timer.Delta());
 
 	MATRIX_DATA mData;
 	mData.world = worldM;
@@ -441,9 +438,9 @@ bool DEMO_APP::Run()
 	mData.proj = projM;
 	
 	D3D11_MAPPED_SUBRESOURCE cSub;
-	context->Map(constantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &cSub);
-	memcpy(cSub.pData, &mData, sizeof(mData));
-	context->Unmap(constantBuffer, NULL);
+	context->Map(constantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &cSub);
+	memcpy(cSub.pData, &mData, sizeof(MATRIX_DATA));
+	context->Unmap(constantBuffer, 0);
 	
 
 	UINT stride = sizeof(TEST_VERTEX);
@@ -451,8 +448,8 @@ bool DEMO_APP::Run()
 
 	context->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
 	context->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R16_UINT, 0);
-	context->IASetInputLayout(inputLayout);
 	context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	context->IASetInputLayout(inputLayout);
 
 	//context->UpdateSubresource(constantBuffer, 0, nullptr, &mData, 0, 0);
 
