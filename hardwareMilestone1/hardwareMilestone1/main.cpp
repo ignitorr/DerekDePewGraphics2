@@ -60,6 +60,9 @@ class DEMO_APP
 	ID3D11VertexShader			*vs;
 	ID3D11PixelShader			*ps;
 
+	ID3D11Texture2D				*depthStencil;
+	ID3D11DepthStencilView		*depthStencilView;
+
 	ID3D11Buffer				*vertexBuffer;
 	ID3D11Buffer				*indexBuffer;
 	ID3D11Buffer				*constantBuffer;
@@ -67,6 +70,8 @@ class DEMO_APP
 	XMMATRIX					worldM;
 	XMMATRIX					viewM;
 	XMMATRIX					projM;
+
+	XMMATRIX					worldM2;
 
 	XTime timer;
 
@@ -162,6 +167,29 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	viewport.TopLeftX = 0;
 	viewport.TopLeftY = 0;
 
+	// CREATE DEPTH BUFFER
+	D3D11_TEXTURE2D_DESC depthDesc;
+	ZeroMemory(&depthDesc, sizeof(depthDesc));
+	depthDesc.Width = BACKBUFFER_WIDTH;
+	depthDesc.Height = BACKBUFFER_HEIGHT;
+	depthDesc.Usage = D3D11_USAGE_DEFAULT;
+	depthDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+	depthDesc.MipLevels = 1;
+	depthDesc.ArraySize = 1;
+	depthDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	depthDesc.CPUAccessFlags = NULL;
+	depthDesc.MiscFlags = NULL;
+	depthDesc.SampleDesc.Count = 1;
+	depthDesc.SampleDesc.Quality = 0;
+	device->CreateTexture2D(&depthDesc, NULL, &depthStencil);
+
+	D3D11_DEPTH_STENCIL_VIEW_DESC viewDesc;
+	ZeroMemory(&viewDesc, sizeof(viewDesc));
+	viewDesc.Format = depthDesc.Format;
+	viewDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	viewDesc.Texture2D.MipSlice = 0;
+	device->CreateDepthStencilView(depthStencil, &viewDesc, &depthStencilView);
+
 
 	// DEFINE SHADERS
 	device->CreateVertexShader(Trivial_VS, sizeof(Trivial_VS), NULL, &vs);
@@ -233,14 +261,15 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	// create matrices
 	worldM = XMMatrixIdentity();
+	worldM2 = XMMatrixIdentity();
 
 	// view matrix & proj, REPLACE THIS!!!
-	XMVECTOR Eye = XMVectorSet(-0.5f, 1.0f, -2.5f, 0.0f);
+	XMVECTOR Eye = XMVectorSet(2.5f, 1.0f, -2.5f, 0.0f);
 	XMVECTOR At = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 	XMVECTOR Up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 	viewM = XMMatrixLookAtLH(Eye, At, Up);
 
-	projM = XMMatrixPerspectiveFovLH(XM_PIDIV2, BACKBUFFER_WIDTH / (FLOAT)BACKBUFFER_HEIGHT, 0.01f, 100.0f);
+	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(75), BACKBUFFER_WIDTH / (FLOAT)BACKBUFFER_HEIGHT, 0.01f, 100.0f);
 
 }
 
@@ -252,7 +281,7 @@ bool DEMO_APP::Run()
 {
 	timer.Signal();
 
-	context->OMSetRenderTargets(1, &rtv, NULL);
+	context->OMSetRenderTargets(1, &rtv, depthStencilView);
 	context->RSSetViewports(1, &viewport);
 
 	// CLEAR RTV TO BLUE
@@ -262,16 +291,27 @@ bool DEMO_APP::Run()
 	// SET INPUT LAYOUT
 	context->IASetInputLayout(inputLayout);
 
+	// CLEAR DEPTH TO 1.0
+	context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
+
 	// SET CB AND SHADERS
 	context->VSSetConstantBuffers(0, 1, &constantBuffer);
 	context->VSSetShader(vs, 0, 0);
 	context->PSSetShader(ps, 0, 0);
 
+	// UPDATE MATRIX DATA
+	double time = timer.TotalTime();
 
-	worldM = XMMatrixRotationY(timer.TotalTime());
+	worldM = XMMatrixRotationY(-time);
 
+	XMMATRIX spinM = XMMatrixRotationY(-time);
+	XMMATRIX orbitM = XMMatrixRotationY(-time * 1.5f);
+	XMMATRIX translateM = XMMatrixTranslation(-1.5f, 0.0f, 0.0f);
+	XMMATRIX scaleM = XMMatrixScaling(0.25f, 0.25f, 0.25f);
+	worldM2 = scaleM * spinM * translateM * orbitM;
+
+	// DRAW FIRST CUBE
 	MATRIX_DATA cbData;
-
 	cbData.world = worldM;
 	cbData.view = viewM;
 	cbData.proj = projM;
@@ -289,9 +329,23 @@ bool DEMO_APP::Run()
 
 	context->DrawIndexed(36, 0, 0);
 
-	// TODO: PART 1 STEP 8
+	// DRAW SECOND CUBE
+
+	/*
+	MATRIX_DATA cbData2;
+	cbData2.world = worldM2;
+	cbData2.view = viewM;
+	cbData2.proj = projM;
+	*/
+	cbData.world = worldM2;
+	D3D11_MAPPED_SUBRESOURCE cubeSub2;
+	context->Map(constantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &cubeSub2);
+	memcpy(cubeSub2.pData, &cbData, sizeof(cbData));
+	context->Unmap(constantBuffer, NULL);
+	context->DrawIndexed(36, 0, 0);
+
+
 	swap->Present(0, 0);
-	// END OF PART 1
 	return true;
 }
 
