@@ -26,7 +26,6 @@ using namespace std;
 // TODO: PART 1 STEP 1b
 #include <DirectXMath.h>
 using namespace DirectX;
-
 // TODO: PART 2 STEP 6
 #include "Trivial_VS.csh"
 #include "Trivial_PS.csh"
@@ -39,53 +38,38 @@ using namespace DirectX;
 //************************************************************
 
 class DEMO_APP
-{	
+{
 	HINSTANCE						application;
 	WNDPROC							appWndProc;
 	HWND							window;
 	// TODO: PART 1 STEP 2
+	ID3D11Device *device;
+	IDXGISwapChain *swap;
+	ID3D11RenderTargetView *rtv;
+	ID3D11DeviceContext *context;
+	D3D11_VIEWPORT viewport;
 
-
-	/////////////////////////////
-	//						   //
-	// GRAPHICS 2 PROJECT VARS //
-	//						   //
-	/////////////////////////////
-
-	ID3D11Device				*device;
-	IDXGISwapChain				*swap;
-	ID3D11RenderTargetView		*rtv;
-	ID3D11DeviceContext			*context;
-	ID3D11InputLayout			*inputLayout;
-	ID3D11VertexShader			*vs;
-	ID3D11PixelShader			*ps;
-	ID3D11Buffer				*buffer;
-	ID3D11Buffer				*vertexBuffer;
-	ID3D11Buffer				*indexBuffer;
-	ID3D11Buffer				*constantBuffer;
-	
-	D3D11_VIEWPORT				viewport;
-
-
-	XMMATRIX					worldM;
-	XMMATRIX					viewM;
-	XMMATRIX					projM;
-	
+	DXGI_SWAP_CHAIN_DESC sd = {};
 
 
 
-	DXGI_SWAP_CHAIN_DESC		sd = {};
-	D3D11_BUFFER_DESC			bd = {};
+	// TODO: PART 2 STEP 2
+	ID3D11Buffer *buffer;
+	unsigned int vertCount = 0;
+	D3D11_BUFFER_DESC bd = {};
+
+	ID3D11InputLayout *inputLayout;
 
 
-
-	
 	// BEGIN PART 5
 	// TODO: PART 5 STEP 1
 	ID3D11Buffer *boardBuffer;
 	unsigned int boardCount = 0;
 	D3D11_BUFFER_DESC bbd = {};
 
+	// TODO: PART 2 STEP 4
+	ID3D11VertexShader *vs;
+	ID3D11PixelShader *ps;
 	// BEGIN PART 3
 	// TODO: PART 3 STEP 1
 	ID3D11Buffer *cBuffer;
@@ -94,49 +78,39 @@ class DEMO_APP
 	// TODO: PART 3 STEP 2b
 	struct SEND_TO_VRAM
 	{
-		DirectX::XMFLOAT4 constantColor;
-		DirectX::XMFLOAT2 constantOffset;
-		DirectX::XMFLOAT2 padding;
+		//DirectX::XMFLOAT4 constantColor;
+		//DirectX::XMFLOAT2 constantOffset;
+		//DirectX::XMFLOAT2 padding;
+		XMMATRIX world;
+		XMMATRIX view;
+		XMMATRIX proj;
 	};
 	// TODO: PART 3 STEP 4a
 	SEND_TO_VRAM toShader;
 	SEND_TO_VRAM toGrid;
 
-	struct MATRIX_DATA
-	{
-		XMMATRIX world;
-		XMMATRIX view;
-		XMMATRIX proj;
-	};
 
-	MATRIX_DATA mData;
+	// TEST VARS, DELETE
+	ID3D11Buffer				*vertexBuffer;
+	ID3D11Buffer				*indexBuffer;
+	ID3D11Buffer				*constantBuffer;
+	// END TEST VARS
+
+	XMMATRIX					worldM;
+	XMMATRIX					viewM;
+	XMMATRIX					projM;
 
 
 	DirectX::XMFLOAT2 vel = { 1.0f, 0.5f };
-
-	ID3D11Buffer *cubeBuffer;
-	D3D11_BUFFER_DESC cubeBD = {};
-
-	ID3D11Buffer *sceneBuffer;
-	D3D11_BUFFER_DESC sceneBD = {};
-
-
 public:
 	// BEGIN PART 2
 	// TODO: PART 2 STEP 1
 	struct SIMPLE_VERTEX
 	{
-		DirectX::XMFLOAT2 xy;
+		DirectX::XMFLOAT3 xyz;
+		XMFLOAT4 color;
 	};
 
-	struct TEST_VERTEX
-	{
-		DirectX::XMFLOAT3 pos;
-		DirectX::XMFLOAT4 rgba;
-		
-	};
-
-	
 	DEMO_APP(HINSTANCE hinst, WNDPROC proc);
 	bool Run();
 	bool ShutDown();
@@ -150,28 +124,28 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 {
 	// ****************** BEGIN WARNING ***********************// 
 	// WINDOWS CODE, I DON'T TEACH THIS YOU MUST KNOW IT ALREADY! 
-	application = hinst; 
-	appWndProc = proc; 
+	application = hinst;
+	appWndProc = proc;
 
 	WNDCLASSEX  wndClass;
-    ZeroMemory( &wndClass, sizeof( wndClass ) );
-    wndClass.cbSize         = sizeof( WNDCLASSEX );             
-    wndClass.lpfnWndProc    = appWndProc;						
-    wndClass.lpszClassName  = L"DirectXApplication";            
-	wndClass.hInstance      = application;		               
-    wndClass.hCursor        = LoadCursor( NULL, IDC_ARROW );    
-    wndClass.hbrBackground  = ( HBRUSH )( COLOR_WINDOWFRAME ); 
+	ZeroMemory(&wndClass, sizeof(wndClass));
+	wndClass.cbSize = sizeof(WNDCLASSEX);
+	wndClass.lpfnWndProc = appWndProc;
+	wndClass.lpszClassName = L"DirectXApplication";
+	wndClass.hInstance = application;
+	wndClass.hCursor = LoadCursor(NULL, IDC_ARROW);
+	wndClass.hbrBackground = (HBRUSH)(COLOR_WINDOWFRAME);
 	//wndClass.hIcon			= LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(IDI_FSICON));
-    RegisterClassEx( &wndClass );
+	RegisterClassEx(&wndClass);
 
 	RECT window_size = { 0, 0, BACKBUFFER_WIDTH, BACKBUFFER_HEIGHT };
 	AdjustWindowRect(&window_size, WS_OVERLAPPEDWINDOW, false);
 
-	window = CreateWindow(	L"DirectXApplication", L"CGS Hardware Project",	WS_OVERLAPPEDWINDOW & ~(WS_THICKFRAME|WS_MAXIMIZEBOX), 
-							CW_USEDEFAULT, CW_USEDEFAULT, window_size.right-window_size.left, window_size.bottom-window_size.top,					
-							NULL, NULL,	application, this );												
+	window = CreateWindow(L"DirectXApplication", L"CGS Hardware Project", WS_OVERLAPPEDWINDOW & ~(WS_THICKFRAME | WS_MAXIMIZEBOX),
+		CW_USEDEFAULT, CW_USEDEFAULT, window_size.right - window_size.left, window_size.bottom - window_size.top,
+		NULL, NULL, application, this);
 
-    ShowWindow( window, SW_SHOW );
+	ShowWindow(window, SW_SHOW);
 	//********************* END WARNING ************************//
 
 	// TODO: PART 1 STEP 3a
@@ -199,7 +173,6 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 		&device,
 		NULL,
 		&context
-
 	);
 	// TODO: PART 1 STEP 4
 	ID3D11Texture2D *backBuffer;
@@ -220,24 +193,24 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	for (int i = 0; i <= 360; i++)
 	{
 
-		float x = sin(DirectX::XM_PI / 180.0f * (i));
-		float y = cos(DirectX::XM_PI / 180.0f * (i));
-		circleVerts[i].xy = { x, y };
+	float x = sin(DirectX::XM_PI / 180.0f * (i));
+	float y = cos(DirectX::XM_PI / 180.0f * (i));
+	circleVerts[i].xyz = { x, y, 0 };
 	}
 	// BEGIN PART 4
 	// TODO: PART 4 STEP 1
 	for (int i = 0; i <= 360; i++)
 	{
-		circleVerts[i].xy.x *= 0.2f;
-		circleVerts[i].xy.y *= 0.2f;
+	circleVerts[i].xyz.x *= 0.2f;
+	circleVerts[i].xyz.y *= 0.2f;
 	}
 	// TODO: PART 2 STEP 3b
 	bd.Usage = D3D11_USAGE_IMMUTABLE;
 	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	bd.CPUAccessFlags = NULL;
 	bd.ByteWidth = sizeof(SIMPLE_VERTEX) * 361;
-	
-    // TODO: PART 2 STEP 3c
+
+	// TODO: PART 2 STEP 3c
 	D3D11_SUBRESOURCE_DATA bufferData = {0};
 	bufferData.pSysMem = circleVerts;
 	// TODO: PART 2 STEP 3d
@@ -245,78 +218,125 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	// TODO: PART 5 STEP 2a
 	SIMPLE_VERTEX gridVerts[6 * 200];
 
+
 	// TODO: PART 5 STEP 2b
-	
+
 	for (int y = 0; y < 20; y++)
 	{
-		for (int x = 0; x < 10; x++)
-		{
-			int index = 0 + (y * 60) + (x*6);
-			bool offsetGrid = (y % 2 == 0) ? true : false;
-			float offset = 0;
-			if (offsetGrid)
-			{
-				offset = 0.1f;
-			}
-			float curX, curY;
-			curX = offset + -1.0f + (0.2 * x);
-			curY = 1.0f - (0.1 * y);
-			//triangle 1
-			gridVerts[index].xy = { curX, curY };
-			gridVerts[index + 1].xy = { curX + 0.1f, curY - 0.1f };
-			gridVerts[index + 2].xy = { curX, curY - 0.1f };
-								
-			//triangle 2		
-			gridVerts[index + 3].xy = { curX, curY };
-			gridVerts[index + 4].xy = { curX + 0.1f, curY };
-			gridVerts[index + 5].xy = { curX + 0.1f, curY - 0.1f };
-		}
+	for (int x = 0; x < 10; x++)
+	{
+	int index = 0 + (y * 60) + (x*6);
+	bool offsetGrid = (y % 2 == 0) ? true : false;
+	float offset = 0;
+	if (offsetGrid)
+	{
+	offset = 0.1f;
 	}
+	float curX, curY;
+	curX = offset + -1.0f + (0.2 * x);
+	curY = 1.0f - (0.1 * y);
+	//triangle 1
+	gridVerts[index].xyz = { curX, curY, 0 };
+	gridVerts[index + 1].xyz = { curX + 0.1f, curY - 0.1f, 0 };
+	gridVerts[index + 2].xyz = { curX, curY - 0.1f, 0 };
+
+	//triangle 2
+	gridVerts[index + 3].xyz = { curX, curY, 0 };
+	gridVerts[index + 4].xyz = { curX + 0.1f, curY, 0 };
+	gridVerts[index + 5].xyz = { curX + 0.1f, curY - 0.1f, 0 };
+	}
+	}
+
+	// TODO: PART 5 STEP 3
+
+	bbd.Usage = D3D11_USAGE_IMMUTABLE;
+	bbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	bbd.CPUAccessFlags = NULL;
+	bbd.ByteWidth = sizeof(SIMPLE_VERTEX) * 1200;
+	//bbd.ByteWidth = sizeof(SIMPLE_VERTEX) * 6;
+	D3D11_SUBRESOURCE_DATA bBufferData = { 0 };
+	bBufferData.pSysMem = gridVerts;
+
+	device->CreateBuffer(&bbd, &bBufferData, &boardBuffer);
+
 	*/
+	// TODO: PART 2 STEP 5
+	// ADD SHADERS TO PROJECT, SET BUILD OPTIONS & COMPILE
 
-	//************************************************************
-	//************ GRAPHICS 2 CODE *******************************
-	//************************************************************
-
-	// create shaders
+	// TODO: PART 2 STEP 7
 	device->CreateVertexShader(Trivial_VS, sizeof(Trivial_VS), NULL, &vs);
 	device->CreatePixelShader(Trivial_PS, sizeof(Trivial_PS), NULL, &ps);
 
-	// create inputlayout
+	// TODO: PART 2 STEP 8a
 	D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	{
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 }
+		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 	};
 	// TODO: PART 2 STEP 8b
-	device->CreateInputLayout(vLayout, ARRAYSIZE(vLayout), Trivial_VS, sizeof(Trivial_VS), &inputLayout);
+	device->CreateInputLayout(vLayout, 2, Trivial_VS, sizeof(Trivial_VS), &inputLayout);
+	// TODO: PART 3 STEP 3
+	/*
+	cbd.Usage = D3D11_USAGE_DYNAMIC;
+	cbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	cbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	cbd.ByteWidth = sizeof(SEND_TO_VRAM);
 
-	// create cube data
-	TEST_VERTEX cube[] =
+	device->CreateBuffer(&cbd, NULL, &constantBuffer);
+	*/
+	// TODO: PART 3 STEP 4b
+	//toShader.constantOffset = { 0, 0 };
+	//toShader.constantColor = { 1.0f, 1.0f, 0.0f, 1.0f };
+
+
+
+	SIMPLE_VERTEX cube[] =
 	{
-		{ XMFLOAT3(-0.5f, 0.5f,-0.5f), XMFLOAT4(0, 1.0f, 0, 1.0f) },
-		{ XMFLOAT3(0.5f, 0.5f,-0.5f), XMFLOAT4(0, 1.0f, 0, 1.0f) },
-		{ XMFLOAT3(0.5f,-0.5f,-0.5f), XMFLOAT4(0, 1.0f, 0, 1.0f) },
-		{ XMFLOAT3(-0.5f,-0.5f,-0.5f), XMFLOAT4(0, 1.0f, 0, 1.0f) },
+		{ XMFLOAT3(-0.5f, 0.5f,-0.5f), XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f) },
+		{ XMFLOAT3(0.5f, 0.5f,-0.5f), XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f) },
+		{ XMFLOAT3(0.5f,0.5f,0.5f), XMFLOAT4(0.0f, 1.0f, 1.0f, 1.0f) },
+		{ XMFLOAT3(-0.5f,0.5f,0.5f), XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f) },
 
-		{ XMFLOAT3(-0.5f, 0.5f, 0.5f), XMFLOAT4(0, 1.0f, 0, 1.0f) },
-		{ XMFLOAT3(0.5f, 0.5f, 0.5f), XMFLOAT4(0, 1.0f, 0, 1.0f) },
-		{ XMFLOAT3(0.5f,-0.5f, 0.5f), XMFLOAT4(0, 1.0f, 0, 1.0f) },
-		{ XMFLOAT3(-0.5f,-0.5f, 0.5f), XMFLOAT4(0, 1.0f, 0, 1.0f) },
+		{ XMFLOAT3(-0.5f, -0.5f, -0.5f), XMFLOAT4(1.0f, 0.0f, 1.0f, 1.0f) },
+		{ XMFLOAT3(0.5f, -0.5f, -0.5f), XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f) },
+		{ XMFLOAT3(0.5f,-0.5f, 0.5f), XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f) },
+		{ XMFLOAT3(-0.5f,-0.5f, 0.5f), XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f) },
 	};
 	short cubeInd[] =
 	{
-		0,1,3, 3,1,2,
-		0,4,5, 0,5,1,
-		1,5,2, 2,5,6,
-		4,0,7, 7,0,3,
-		7,3,2, 7,2,6,
-		5,4,6, 6,4,7
+		/*
+		0,1,3, 3,1,2, //top
+		0,5,4, 0,1,5, //back
+		1,5,2, 2,5,6, //right
+		4,7,0, 7,3,0, //left
+		7,3,2, 7,2,6, //front
+		4,5,6, 7,4,6  //bottom
+		*/
+		3,1,0,
+		2,1,3,
+
+		0,5,4,
+		1,5,0,
+
+		3,4,7,
+		0,4,3,
+
+		1,6,5,
+		2,6,1,
+
+		2,7,6,
+		3,7,2,
+
+		6,4,5,
+		7,4,6,
+
+
 	};
 	// set vertex buffer
+	D3D11_BUFFER_DESC cubeBD;
 	ZeroMemory(&cubeBD, sizeof(cubeBD));
 	cubeBD.Usage = D3D11_USAGE_IMMUTABLE;
-	cubeBD.ByteWidth = sizeof(TEST_VERTEX) * 8;
+	cubeBD.ByteWidth = sizeof(SIMPLE_VERTEX) * 8;
 	cubeBD.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	cubeBD.CPUAccessFlags = NULL;
 
@@ -338,62 +358,27 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	//context->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R16_UINT, 0);
 	// create NEW constant buffer
+
 	cubeBD.Usage = D3D11_USAGE_DYNAMIC;
-	cubeBD.ByteWidth = sizeof(MATRIX_DATA);
+	cubeBD.ByteWidth = sizeof(SEND_TO_VRAM);
 	cubeBD.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	cubeBD.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 
 	device->CreateBuffer(&cubeBD, NULL, &constantBuffer);
 
+
+
 	// create matrices
 	worldM = XMMatrixIdentity();
 
 	// view matrix & proj, REPLACE THIS!!!
-	XMVECTOR Eye = XMVectorSet(0.0f, 3.0f, -5.0f, 0.0f);
+	XMVECTOR Eye = XMVectorSet(0.0f, 1.0f, -2.5f, 0.0f);
 	XMVECTOR At = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 	XMVECTOR Up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 	viewM = XMMatrixLookAtLH(Eye, At, Up);
 
-	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(75), BACKBUFFER_WIDTH / (FLOAT)BACKBUFFER_HEIGHT, 0.01f, 100.0f);
+	projM = XMMatrixPerspectiveFovLH(XM_PIDIV2, BACKBUFFER_WIDTH / (FLOAT)BACKBUFFER_HEIGHT, 0.01f, 100.0f);
 
-
-	//************************************************************
-	//************ END GRAPHICS 2 CODE ***************************
-	//************************************************************
-	
-	// TODO: PART 5 STEP 3
-	/*
-	bbd.Usage = D3D11_USAGE_IMMUTABLE;
-	bbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	bbd.CPUAccessFlags = NULL;
-	bbd.ByteWidth = sizeof(SIMPLE_VERTEX) * 1200;
-	//bbd.ByteWidth = sizeof(SIMPLE_VERTEX) * 6;
-	D3D11_SUBRESOURCE_DATA bBufferData = { 0 };
-	bBufferData.pSysMem = gridVerts;
-
-	device->CreateBuffer(&bbd, &bBufferData, &boardBuffer);
-	*/
-	// TODO: PART 2 STEP 5
-	// ADD SHADERS TO PROJECT, SET BUILD OPTIONS & COMPILE
-
-	// TODO: PART 2 STEP 7
-	//device->CreateVertexShader(Trivial_VS, sizeof(Trivial_VS), NULL, &vs);
-	//device->CreatePixelShader(Trivial_PS, sizeof(Trivial_PS), NULL, &ps);
-	
-	// TODO: PART 2 STEP 8a
-	
-	// TODO: PART 3 STEP 3
-	/*
-	cbd.Usage = D3D11_USAGE_DYNAMIC;
-	cbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	cbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-	cbd.ByteWidth = sizeof(SEND_TO_VRAM);
-
-	device->CreateBuffer(&cbd, NULL, &cBuffer);
-	// TODO: PART 3 STEP 4b
-	toShader.constantOffset = { 0, 0 };
-	toShader.constantColor = { 1.0f, 1.0f, 0.0f, 1.0f };
-	*/
 }
 
 //************************************************************
@@ -412,58 +397,27 @@ bool DEMO_APP::Run()
 	// TODO: PART 4 STEP 5
 	if (toShader.constantOffset.x >= 1.0f || toShader.constantOffset.x <= -1.0f)
 	{
-		vel.x = -vel.x;
+	vel.x = -vel.x;
 	}
 	if (toShader.constantOffset.y >= 1.0f || toShader.constantOffset.y <= -1.0f)
 	{
-		vel.y = -vel.y;
+	vel.y = -vel.y;
 	}
 	*/
 	// END PART 4
 
 	// TODO: PART 1 STEP 7a
 	context->OMSetRenderTargets(1, &rtv, NULL);
-	
+
 	// TODO: PART 1 STEP 7b
 	context->RSSetViewports(1, &viewport);
 	// TODO: PART 1 STEP 7c
 	FLOAT color[4] = { 0.0, 0.0f, 0.4f, 1.0f };
 	context->ClearRenderTargetView(rtv, color);
-
-	//worldM = XMMatrixRotationY(timer.Delta());
-
-	MATRIX_DATA mData;
-	mData.world = worldM;
-	mData.view = viewM;
-	mData.proj = projM;
-	
-	D3D11_MAPPED_SUBRESOURCE cSub;
-	context->Map(constantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &cSub);
-	memcpy(cSub.pData, &mData, sizeof(MATRIX_DATA));
-	context->Unmap(constantBuffer, 0);
-	
-
-	UINT stride = sizeof(TEST_VERTEX);
-	UINT offset = 0;
-
-	context->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
-	context->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R16_UINT, 0);
-	context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	context->IASetInputLayout(inputLayout);
-
-	//context->UpdateSubresource(constantBuffer, 0, nullptr, &mData, 0, 0);
-
-	context->VSSetShader(vs, 0, 0);
-	context->VSSetConstantBuffers(0, 1, &constantBuffer);
-	context->PSSetShader(ps, 0, 0);
-
-	context->DrawIndexed(36, 0, 0);
-
-
-	/*
 	// TODO: PART 5 STEP 4
-	toGrid.constantOffset = { 0, 0 };
-	toGrid.constantColor = { 0.0f, 0.0f, 0.0f, 1.0f };
+	//toGrid.constantOffset = { 0, 0 };
+	//toGrid.constantColor = { 0.0f, 0.0f, 0.0f, 1.0f };
+	/*
 	// TODO: PART 5 STEP 5
 	D3D11_MAPPED_SUBRESOURCE bSub;
 	context->Map(cBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &bSub);
@@ -478,9 +432,9 @@ bool DEMO_APP::Run()
 	context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	// TODO: PART 5 STEP 7
 	context->VSSetShader(vs, 0, 0);
-	context->Draw(1200, 0);
+	//context->Draw(1200, 0);
 	// END PART 5
-	
+
 	// TODO: PART 3 STEP 5
 	D3D11_MAPPED_SUBRESOURCE sub;
 	context->Map(cBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &sub);
@@ -489,8 +443,6 @@ bool DEMO_APP::Run()
 	// TODO: PART 3 STEP 6
 	context->VSSetConstantBuffers(0, 1, &cBuffer);
 	// TODO: PART 2 STEP 9a
-	UINT strides = sizeof(SIMPLE_VERTEX);
-	UINT offsets = 0;
 	context->IASetVertexBuffers(0, 1, &buffer, &strides, &offsets);
 	// TODO: PART 2 STEP 9b
 	context->VSSetShader(vs, 0, 0);
@@ -501,14 +453,41 @@ bool DEMO_APP::Run()
 	context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINESTRIP);
 	// TODO: PART 2 STEP 10
 	context->PSSetShader(ps, 0, 0);
-	context->Draw(361, 0);
+	//context->Draw(361, 0);
 	// END PART 2
 	*/
+
+	context->IASetInputLayout(inputLayout);
+
+	context->VSSetConstantBuffers(0, 1, &constantBuffer);
+	context->VSSetShader(vs, 0, 0);
+	context->PSSetShader(ps, 0, 0);
+
+	//toGrid.constantColor = { 0.0f, 1.0f, 0.0f, 1.0f };
+
+	worldM = XMMatrixRotationY(timer.TotalTime());
+
+	toGrid.world = worldM;
+	toGrid.view = viewM;
+	toGrid.proj = projM;
+
+	D3D11_MAPPED_SUBRESOURCE cubeSub;
+	context->Map(constantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &cubeSub);
+	memcpy(cubeSub.pData, &toGrid, sizeof(toGrid));
+	context->Unmap(constantBuffer, NULL);
+
+	UINT strides = sizeof(SIMPLE_VERTEX);
+	UINT offsets = 0;
+	context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	context->IASetVertexBuffers(0, 1, &vertexBuffer, &strides, &offsets);
+	context->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R16_UINT, 0);
+
+	context->DrawIndexed(36, 0, 0);
 
 	// TODO: PART 1 STEP 8
 	swap->Present(0, 0);
 	// END OF PART 1
-	return true; 
+	return true;
 }
 
 //************************************************************
@@ -518,12 +497,12 @@ bool DEMO_APP::Run()
 bool DEMO_APP::ShutDown()
 {
 	// TODO: PART 1 STEP 6
-	
+
 	swap->Release();
 	device->Release();
 	rtv->Release();
 	context->Release();
-	UnregisterClass( L"DirectXApplication", application ); 
+	UnregisterClass(L"DirectXApplication", application);
 	return true;
 }
 
@@ -533,34 +512,34 @@ bool DEMO_APP::ShutDown()
 
 // ****************** BEGIN WARNING ***********************// 
 // WINDOWS CODE, I DON'T TEACH THIS YOU MUST KNOW IT ALREADY!
-	
-int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLine,	int nCmdShow );						   
-LRESULT CALLBACK WndProc(HWND hWnd,	UINT message, WPARAM wparam, LPARAM lparam );		
-int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, LPTSTR, int )
+
+int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLine, int nCmdShow);
+LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wparam, LPARAM lparam);
+int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 {
 	srand(unsigned int(time(0)));
-	DEMO_APP myApp(hInstance,(WNDPROC)WndProc);	
-    MSG msg; ZeroMemory( &msg, sizeof( msg ) );
-    while ( msg.message != WM_QUIT && myApp.Run() )
-    {	
-	    if ( PeekMessage( &msg, NULL, 0, 0, PM_REMOVE ) )
-        { 
-            TranslateMessage( &msg );
-            DispatchMessage( &msg ); 
-        }
-    }
-	myApp.ShutDown(); 
-	return 0; 
+	DEMO_APP myApp(hInstance, (WNDPROC)WndProc);
+	MSG msg; ZeroMemory(&msg, sizeof(msg));
+	while (msg.message != WM_QUIT && myApp.Run())
+	{
+		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+		{
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+	}
+	myApp.ShutDown();
+	return 0;
 }
-LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam )
+LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    if(GetAsyncKeyState(VK_ESCAPE))
+	if (GetAsyncKeyState(VK_ESCAPE))
 		message = WM_DESTROY;
-    switch ( message )
-    {
-        case ( WM_DESTROY ): { PostQuitMessage( 0 ); }
-        break;
-    }
-    return DefWindowProc( hWnd, message, wParam, lParam );
+	switch (message)
+	{
+	case (WM_DESTROY): { PostQuitMessage(0); }
+					   break;
+	}
+	return DefWindowProc(hWnd, message, wParam, lParam);
 }
 //********************* END WARNING ************************//
