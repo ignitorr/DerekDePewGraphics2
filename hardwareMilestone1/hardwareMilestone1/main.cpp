@@ -479,7 +479,7 @@ bool DEMO_APP::MoveCamera()
 	//update proj matrix with new FOV
 	DXGI_SWAP_CHAIN_DESC current;
 	swap->GetDesc(&current);
-	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), (float)current.BufferDesc.Width / (float)current.BufferDesc.Width, 0.1f, 100.0f);
+	//projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), (float)current.BufferDesc.Width / (float)current.BufferDesc.Width, 0.1f, 100.0f);
 
 	return true;
 }
@@ -493,7 +493,6 @@ bool DEMO_APP::ResizeWindow()
 
 	context->ClearState();
 	rtv->Release();
-
 
 	swap->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
 
