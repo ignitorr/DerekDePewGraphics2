@@ -92,6 +92,7 @@ public:
 	DEMO_APP(HINSTANCE hinst, WNDPROC proc);
 	bool Run();
 	bool ShutDown();
+	bool ResizeWindow();
 };
 
 //************************************************************
@@ -119,7 +120,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	RECT window_size = { 0, 0, BACKBUFFER_WIDTH, BACKBUFFER_HEIGHT };
 	AdjustWindowRect(&window_size, WS_OVERLAPPEDWINDOW, false);
 
-	window = CreateWindow(L"DirectXApplication", L"CGS Hardware Project", WS_OVERLAPPEDWINDOW & ~(WS_THICKFRAME | WS_MAXIMIZEBOX),
+	window = CreateWindow(L"DirectXApplication", L"CGS Hardware Project", WS_OVERLAPPEDWINDOW & ~(WS_MAXIMIZEBOX),
 		CW_USEDEFAULT, CW_USEDEFAULT, window_size.right - window_size.left, window_size.bottom - window_size.top,
 		NULL, NULL, application, this);
 
@@ -349,6 +350,7 @@ bool DEMO_APP::Run()
 	return true;
 }
 
+
 //************************************************************
 //************ DESTRUCTION ***********************************
 //************************************************************
@@ -381,10 +383,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	MSG msg; ZeroMemory(&msg, sizeof(msg));
 	while (msg.message != WM_QUIT && myApp.Run())
 	{
-		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
 		{
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
+		}
+		if (msg.message == WM_SIZE)
+		{
+			myApp.ResizeWindow();
 		}
 	}
 	myApp.ShutDown();
@@ -402,3 +408,62 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	return DefWindowProc(hWnd, message, wParam, lParam);
 }
 //********************* END WARNING ************************//
+
+
+//***************************************//
+//************ RESIZE WINDOW ************//
+//***************************************//
+bool DEMO_APP::ResizeWindow()
+{
+	///////
+	// WIP
+	///////
+	context->ClearState();
+	rtv->Release();
+
+	ID3D11Texture2D *tempBackBuffer;
+	swap->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&tempBackBuffer);
+	device->CreateRenderTargetView(tempBackBuffer, NULL, &rtv);
+
+	DXGI_SWAP_CHAIN_DESC current;
+	swap->GetDesc(&current);
+
+	D3D11_VIEWPORT vp;
+	vp.Width = float(current.BufferDesc.Width);
+	vp.Height = float(current.BufferDesc.Height);
+	vp.MinDepth = 0.0f;
+	vp.MaxDepth = 1.0f;
+	vp.TopLeftX = 0;
+	vp.TopLeftY = 0;
+	context->RSSetViewports(1, &vp);
+
+	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(75), vp.Width / vp.Height, 0.1f, 100.0f);
+
+
+	depthStencil->Release();
+	depthStencilView->Release();
+	//create new zbuffer
+	D3D11_TEXTURE2D_DESC depthDesc;
+	ZeroMemory(&depthDesc, sizeof(depthDesc));
+	depthDesc.Width = vp.Width;
+	depthDesc.Height = vp.Height;
+	depthDesc.Usage = D3D11_USAGE_DEFAULT;
+	depthDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+	depthDesc.MipLevels = 1;
+	depthDesc.ArraySize = 1;
+	depthDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	depthDesc.CPUAccessFlags = NULL;
+	depthDesc.MiscFlags = NULL;
+	depthDesc.SampleDesc.Count = 1;
+	depthDesc.SampleDesc.Quality = 0;
+	device->CreateTexture2D(&depthDesc, NULL, &depthStencil);
+
+	D3D11_DEPTH_STENCIL_VIEW_DESC viewDesc;
+	ZeroMemory(&viewDesc, sizeof(viewDesc));
+	viewDesc.Format = depthDesc.Format;
+	viewDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	viewDesc.Texture2D.MipSlice = 0;
+	device->CreateDepthStencilView(depthStencil, &viewDesc, &depthStencilView);
+
+	return true;
+}
