@@ -168,6 +168,8 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	viewport.TopLeftX = 0;
 	viewport.TopLeftY = 0;
 
+	context->RSSetViewports(1, &viewport);
+
 	// CREATE DEPTH BUFFER
 	D3D11_TEXTURE2D_DESC depthDesc;
 	ZeroMemory(&depthDesc, sizeof(depthDesc));
@@ -202,7 +204,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 	};
-	device->CreateInputLayout(vLayout, 2, Trivial_VS, sizeof(Trivial_VS), &inputLayout);
+	device->CreateInputLayout(vLayout, ARRAYSIZE(vLayout), Trivial_VS, sizeof(Trivial_VS), &inputLayout);
 
 	// DEFINE CUBE DATA
 
@@ -283,7 +285,7 @@ bool DEMO_APP::Run()
 	timer.Signal();
 
 	context->OMSetRenderTargets(1, &rtv, depthStencilView);
-	context->RSSetViewports(1, &viewport);
+	//context->RSSetViewports(1, &viewport);
 
 	// CLEAR RTV TO BLUE
 	FLOAT color[4] = { 0.0, 0.0f, 0.4f, 1.0f };
@@ -371,29 +373,27 @@ bool DEMO_APP::ShutDown()
 //************ WINDOWS RELATED *******************************
 //************************************************************
 
+
 // ****************** BEGIN WARNING ***********************// 
 // WINDOWS CODE, I DON'T TEACH THIS YOU MUST KNOW IT ALREADY!
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLine, int nCmdShow);
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wparam, LPARAM lparam);
+DEMO_APP *myApp;
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 {
 	srand(unsigned int(time(0)));
-	DEMO_APP myApp(hInstance, (WNDPROC)WndProc);
+	myApp = new DEMO_APP(hInstance, (WNDPROC)WndProc);
 	MSG msg; ZeroMemory(&msg, sizeof(msg));
-	while (msg.message != WM_QUIT && myApp.Run())
+	while (msg.message != WM_QUIT && myApp->Run())
 	{
-		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
 		{
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
-		if (msg.message == WM_SIZE)
-		{
-			myApp.ResizeWindow();
-		}
 	}
-	myApp.ShutDown();
+	myApp->ShutDown();
 	return 0;
 }
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -404,6 +404,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	{
 	case (WM_DESTROY): { PostQuitMessage(0); }
 					   break;
+	case WM_SIZE:
+	{
+		myApp->ResizeWindow();
+		break;
+	}
 	}
 	return DefWindowProc(hWnd, message, wParam, lParam);
 }
@@ -418,8 +423,14 @@ bool DEMO_APP::ResizeWindow()
 	///////
 	// WIP
 	///////
+	if (!this) return false;
+	//if (!device || !swap || !context) return false;
+
 	context->ClearState();
 	rtv->Release();
+
+
+	swap->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
 
 	ID3D11Texture2D *tempBackBuffer;
 	swap->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&tempBackBuffer);
@@ -427,6 +438,8 @@ bool DEMO_APP::ResizeWindow()
 
 	DXGI_SWAP_CHAIN_DESC current;
 	swap->GetDesc(&current);
+	
+	tempBackBuffer->Release();
 
 	D3D11_VIEWPORT vp;
 	vp.Width = float(current.BufferDesc.Width);
@@ -458,12 +471,10 @@ bool DEMO_APP::ResizeWindow()
 	depthDesc.SampleDesc.Quality = 0;
 	device->CreateTexture2D(&depthDesc, NULL, &depthStencil);
 
-	D3D11_DEPTH_STENCIL_VIEW_DESC viewDesc;
-	ZeroMemory(&viewDesc, sizeof(viewDesc));
-	viewDesc.Format = depthDesc.Format;
-	viewDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
-	viewDesc.Texture2D.MipSlice = 0;
-	device->CreateDepthStencilView(depthStencil, &viewDesc, &depthStencilView);
+
+	device->CreateDepthStencilView(depthStencil, 0, &depthStencilView);
+
+	context->OMSetRenderTargets(1, &rtv, depthStencilView);
 
 	return true;
 }
