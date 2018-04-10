@@ -82,6 +82,10 @@ class DEMO_APP
 		XMMATRIX proj;
 	};
 
+	float currentFOV = 75.0f;
+	float minFOV = 50.0f;
+	float maxFOV = 120.0f;
+
 public:
 	struct SIMPLE_VERTEX
 	{
@@ -93,6 +97,7 @@ public:
 	bool Run();
 	bool ShutDown();
 	bool ResizeWindow();
+	bool MoveCamera();
 };
 
 //************************************************************
@@ -272,7 +277,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	XMVECTOR Up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 	viewM = XMMatrixLookAtLH(Eye, At, Up);
 
-	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(75), BACKBUFFER_WIDTH / (FLOAT)BACKBUFFER_HEIGHT, 0.01f, 100.0f);
+	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), BACKBUFFER_WIDTH / (FLOAT)BACKBUFFER_HEIGHT, 0.01f, 100.0f);
 
 }
 
@@ -283,7 +288,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 bool DEMO_APP::Run()
 {
 	timer.Signal();
-
+	MoveCamera();
 	context->OMSetRenderTargets(1, &rtv, depthStencilView);
 	//context->RSSetViewports(1, &viewport);
 
@@ -365,6 +370,18 @@ bool DEMO_APP::ShutDown()
 	device->Release();
 	rtv->Release();
 	context->Release();
+
+	inputLayout->Release();
+	vs->Release();
+	ps->Release();
+	depthStencil->Release();
+	depthStencilView->Release();
+
+	vertexBuffer->Release();
+	indexBuffer->Release();
+	constantBuffer->Release();
+
+
 	UnregisterClass(L"DirectXApplication", application);
 	return true;
 }
@@ -394,6 +411,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 		}
 	}
 	myApp->ShutDown();
+	delete myApp;
 	return 0;
 }
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -414,17 +432,64 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 }
 //********************* END WARNING ************************//
 
+//*****************************************//
+//************ CAMERA MOVEMENT ************//
+//*****************************************//
+bool DEMO_APP::MoveCamera()
+{
+	float speed = 0.001f;
+
+	unsigned int inputs[] = { 'W', 'A', 'S', 'D', 'Q', 'E', VK_UP, VK_DOWN};
+	float activeKeys[] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+	float keyEffect[] = { 1, -1, -1, 1, 1, -1, -1, 1 };
+
+	for (int i = 0; i < ARRAYSIZE(inputs); i++)
+	{
+		if (GetAsyncKeyState(inputs[i]))
+		{
+			activeKeys[i] = 1;
+		}
+	}
+	// change FOV for zooming
+	currentFOV += (30 * speed * ((activeKeys[6] * keyEffect[6]) + (activeKeys[7] * keyEffect[7])));
+	if (currentFOV < minFOV)
+		currentFOV = minFOV;
+	if (currentFOV > maxFOV)
+		currentFOV = maxFOV;
+
+	// start camera movement
+	XMMATRIX worldViewM = XMMatrixInverse(0, viewM);
+	XMFLOAT3 translation(
+		speed * ((activeKeys[1] * keyEffect[1]) + (activeKeys[3] * keyEffect[3])),
+		speed * ((activeKeys[5] * keyEffect[5]) + (activeKeys[4] * keyEffect[4])),
+		speed * ((activeKeys[0] * keyEffect[0]) + (activeKeys[2] * keyEffect[2]))
+		);
+
+
+
+	if (translation.x != 0.0f || translation.y != 0.0f || translation.z != 0.0f)
+	{
+		XMMATRIX translate = XMMatrixTranslation(translation.x, translation.y, translation.z);
+
+		worldViewM = translate * worldViewM;
+
+		viewM = XMMatrixInverse(0, worldViewM);
+	}
+
+	//update proj matrix with new FOV
+	DXGI_SWAP_CHAIN_DESC current;
+	swap->GetDesc(&current);
+	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), (float)current.BufferDesc.Width / (float)current.BufferDesc.Width, 0.1f, 100.0f);
+
+	return true;
+}
 
 //***************************************//
 //************ RESIZE WINDOW ************//
 //***************************************//
 bool DEMO_APP::ResizeWindow()
 {
-	///////
-	// WIP
-	///////
 	if (!this) return false;
-	//if (!device || !swap || !context) return false;
 
 	context->ClearState();
 	rtv->Release();
@@ -450,11 +515,11 @@ bool DEMO_APP::ResizeWindow()
 	vp.TopLeftY = 0;
 	context->RSSetViewports(1, &vp);
 
-	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(75), vp.Width / vp.Height, 0.1f, 100.0f);
-
+	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), vp.Width / vp.Height, 0.1f, 100.0f);
 
 	depthStencil->Release();
 	depthStencilView->Release();
+
 	//create new zbuffer
 	D3D11_TEXTURE2D_DESC depthDesc;
 	ZeroMemory(&depthDesc, sizeof(depthDesc));
@@ -470,7 +535,6 @@ bool DEMO_APP::ResizeWindow()
 	depthDesc.SampleDesc.Count = 1;
 	depthDesc.SampleDesc.Quality = 0;
 	device->CreateTexture2D(&depthDesc, NULL, &depthStencil);
-
 
 	device->CreateDepthStencilView(depthStencil, 0, &depthStencilView);
 
