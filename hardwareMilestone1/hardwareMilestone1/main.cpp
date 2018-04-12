@@ -272,9 +272,16 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	worldM2 = XMMatrixIdentity();
 
 	// view matrix & proj, REPLACE THIS!!!
+	
 	XMVECTOR Eye = XMVectorSet(2.5f, 1.0f, -2.5f, 0.0f);
 	XMVECTOR At = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 	XMVECTOR Up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	
+	/*
+	viewM = XMMatrixRotationX(-45.0f);
+	viewM = XMMatrixMultiply(XMMatrixTranslation(0.0f, 0.0f, -3.0f), viewM);
+	viewM = XMMatrixInverse(0, viewM);
+	*/
 	viewM = XMMatrixLookAtLH(Eye, At, Up);
 
 	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), BACKBUFFER_WIDTH / (FLOAT)BACKBUFFER_HEIGHT, 0.01f, 100.0f);
@@ -310,7 +317,7 @@ bool DEMO_APP::Run()
 	// UPDATE MATRIX DATA
 	double time = timer.TotalTime();
 
-	worldM = XMMatrixRotationY(-time);
+	//worldM = XMMatrixRotationY(-time);
 
 	XMMATRIX spinM = XMMatrixRotationY(-time);
 	XMMATRIX orbitM = XMMatrixRotationY(-time * 1.5f);
@@ -319,8 +326,9 @@ bool DEMO_APP::Run()
 	worldM2 = scaleM * spinM * translateM * orbitM;
 
 	// DRAW FIRST CUBE
+	XMMATRIX scaleM2 = XMMatrixScaling(5.25f, 0.1f, 5.25f);
 	MATRIX_DATA cbData;
-	cbData.world = worldM;
+	cbData.world = scaleM2 * worldM;
 	cbData.view = viewM;
 	cbData.proj = projM;
 
@@ -437,12 +445,29 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 //*****************************************//
 bool DEMO_APP::MoveCamera()
 {
+	DXGI_SWAP_CHAIN_DESC current;
+	swap->GetDesc(&current);
+	// speed modifier
 	float speed = 0.001f;
 
-	unsigned int inputs[] = { 'W', 'A', 'S', 'D', 'Q', 'E', VK_UP, VK_DOWN};
-	float activeKeys[] = { 0, 0, 0, 0, 0, 0, 0, 0 };
-	float keyEffect[] = { 1, -1, -1, 1, 1, -1, -1, 1 };
+	unsigned int inputs[] = { 'W', 'A', 'S', 'D', 'Q', 'E', VK_UP, VK_DOWN, VK_RBUTTON};
+	float activeKeys[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+	float keyEffect[] = { 1, -1, -1, 1, 1, -1, -1, 1, 0 };
 
+	static POINT prev;
+	if (prev.x == NULL)
+	{
+		prev.x = 0;
+		prev.y = 0;
+	}
+	POINT cursorPos;
+	
+	GetPhysicalCursorPos(&cursorPos);
+	float cursX = ((float)cursorPos.x - (float)prev.x) / 250.0f;
+	float cursY = ((float)cursorPos.y - (float)prev.y) / -250.0f;
+
+
+	// get active inputs
 	for (int i = 0; i < ARRAYSIZE(inputs); i++)
 	{
 		if (GetAsyncKeyState(inputs[i]))
@@ -457,30 +482,43 @@ bool DEMO_APP::MoveCamera()
 	if (currentFOV > maxFOV)
 		currentFOV = maxFOV;
 
-	// start camera movement
 	XMMATRIX worldViewM = XMMatrixInverse(0, viewM);
-	XMFLOAT3 translation(
+	if (activeKeys[8])
+	{
+		//ShowCursor(false);
+		XMMATRIX xSpin = XMMatrixRotationX(-cursY);
+		XMMATRIX ySpin = XMMatrixRotationY(cursX);
+
+		XMVECTOR temp = worldViewM.r[3];
+		worldViewM.r[3] = XMLoadFloat4(&XMFLOAT4(0, 0, 0, 1));
+
+		worldViewM = xSpin * worldViewM;
+		worldViewM = worldViewM * ySpin;
+		
+		worldViewM.r[3] = temp;
+		//ShowCursor(true);
+	}
+	// start camera movement
+	XMFLOAT3 translation
+	(
 		speed * ((activeKeys[1] * keyEffect[1]) + (activeKeys[3] * keyEffect[3])),
 		speed * ((activeKeys[5] * keyEffect[5]) + (activeKeys[4] * keyEffect[4])),
 		speed * ((activeKeys[0] * keyEffect[0]) + (activeKeys[2] * keyEffect[2]))
-		);
+	);
 
 
 
-	if (translation.x != 0.0f || translation.y != 0.0f || translation.z != 0.0f)
-	{
-		XMMATRIX translate = XMMatrixTranslation(translation.x, translation.y, translation.z);
-
-		worldViewM = translate * worldViewM;
-
-		viewM = XMMatrixInverse(0, worldViewM);
-	}
+	XMMATRIX translate = XMMatrixTranslation(translation.x, translation.y, translation.z);
+	
+	worldViewM = translate * worldViewM;
+	
+	viewM = XMMatrixInverse(0, worldViewM);
 
 	//update proj matrix with new FOV
-	DXGI_SWAP_CHAIN_DESC current;
-	swap->GetDesc(&current);
+
 	//projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), (float)current.BufferDesc.Width / (float)current.BufferDesc.Width, 0.1f, 100.0f);
 
+	prev = cursorPos;
 	return true;
 }
 
