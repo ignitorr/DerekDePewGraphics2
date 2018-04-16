@@ -2,12 +2,13 @@
 struct INPUT_VERTEX
 {
 	float3 coordinate : POSITION;
-	float4 color : COLOR;
+	//float4 color : COLOR;
+	float2 tex : TEXCOORD0;
 };
 
 struct OUTPUT_VERTEX
 {
-	float4 colorOut : COLOR;
+	float2 texOut : TEXCOORD0;
 	float4 projectedCoordinate : SV_POSITION;
 };
 
@@ -37,7 +38,8 @@ OUTPUT_VERTEX main(INPUT_VERTEX fromVertexBuffer)
 	sendToRasterizer.projectedCoordinate = mul(sendToRasterizer.projectedCoordinate, world);
 	sendToRasterizer.projectedCoordinate = mul(sendToRasterizer.projectedCoordinate, view);
 	sendToRasterizer.projectedCoordinate = mul(sendToRasterizer.projectedCoordinate, proj);
-	sendToRasterizer.colorOut = fromVertexBuffer.color;
+	//sendToRasterizer.colorOut = fromVertexBuffer.color;
+	sendToRasterizer.texOut = fromVertexBuffer.tex;
 	// END PART 3
 
 	return sendToRasterizer;
