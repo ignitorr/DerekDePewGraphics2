@@ -82,9 +82,6 @@ class DEMO_APP
 		XMMATRIX proj;
 	};
 
-	float currentFOV = 75.0f;
-	float minFOV = 50.0f;
-	float maxFOV = 120.0f;
 
 public:
 	struct SIMPLE_VERTEX
@@ -94,10 +91,16 @@ public:
 	};
 
 	DEMO_APP(HINSTANCE hinst, WNDPROC proc);
+
+	float currentFOV = 75.0f;
+	float minFOV = 50.0f;
+	float maxFOV = 120.0f;
+
 	bool Run();
 	bool ShutDown();
 	bool ResizeWindow();
 	bool MoveCamera();
+
 };
 
 //************************************************************
@@ -328,7 +331,7 @@ bool DEMO_APP::Run()
 	// DRAW FIRST CUBE
 	XMMATRIX scaleM2 = XMMatrixScaling(5.25f, 0.1f, 5.25f);
 	MATRIX_DATA cbData;
-	cbData.world = scaleM2 * worldM;
+	cbData.world = worldM;
 	cbData.view = viewM;
 	cbData.proj = projM;
 
@@ -453,6 +456,8 @@ bool DEMO_APP::MoveCamera()
 	unsigned int inputs[] = { 'W', 'A', 'S', 'D', 'Q', 'E', VK_UP, VK_DOWN, VK_RBUTTON};
 	float activeKeys[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 	float keyEffect[] = { 1, -1, -1, 1, 1, -1, -1, 1, 0 };
+
+	
 
 	static POINT prev;
 	if (prev.x == NULL)
