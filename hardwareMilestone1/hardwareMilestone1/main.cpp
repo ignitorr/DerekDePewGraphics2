@@ -17,6 +17,7 @@
 #include <ctime>
 #include "XTime.h"
 #include "DDSTextureLoader.h"
+#include "Barrel.h"
 
 using namespace std;
 
@@ -65,12 +66,16 @@ class DEMO_APP
 	ID3D11DepthStencilView		*depthStencilView;
 
 	//TEXTURING
-	ID3D11ShaderResourceView*	textureRV;
-	ID3D11SamplerState*			textureSampler;
+	ID3D11ShaderResourceView	*textureRV;
+	ID3D11SamplerState			*textureSampler;
 
 	ID3D11Buffer				*vertexBuffer;
 	ID3D11Buffer				*indexBuffer;
 	ID3D11Buffer				*constantBuffer;
+
+	// PYRAMID VARS
+	ID3D11Buffer				*pVBuffer;
+	ID3D11Buffer				*pIBuffer;
 
 	XMMATRIX					worldM;
 	XMMATRIX					viewM;
@@ -93,6 +98,8 @@ class DEMO_APP
 	};
 
 
+	bool LoadPyramid();
+
 public:
 	struct SIMPLE_VERTEX
 	{
@@ -114,6 +121,57 @@ public:
 	bool MoveCamera();
 
 };
+
+//TODO: make this work with ANY passed vert array and index array
+// bool DEMO_APP::LoadFromHeader(vert_list, indices)
+bool DEMO_APP::LoadPyramid()
+{
+	SIMPLE_VERTEX pyramid[ARRAYSIZE(Barrel_data)];
+	for (int i = 0; i < ARRAYSIZE(Barrel_data); i++)
+	{
+		pyramid[i].xyz = XMFLOAT3(Barrel_data[i].pos[0], Barrel_data[i].pos[1], Barrel_data[i].pos[2]);
+		pyramid[i].uv = XMFLOAT2(Barrel_data[i].uvw[0], Barrel_data[i].uvw[1]);
+		pyramid[i].normal = XMFLOAT3(Barrel_data[i].nrm[0], Barrel_data[i].nrm[1], Barrel_data[i].nrm[2]);
+	}
+	/*
+	for (int i = 0; i < ARRAYSIZE(test_pyramid_data); i++)
+	{
+		pyramid[i].xyz = XMFLOAT3(test_pyramid_data[i].pos[0], test_pyramid_data[i].pos[1], test_pyramid_data[i].pos[2]);
+		pyramid[i].uv = XMFLOAT2(test_pyramid_data[i].uvw[0], test_pyramid_data[i].uvw[1]);
+		pyramid[i].normal = XMFLOAT3(test_pyramid_data[i].nrm[0], test_pyramid_data[i].nrm[1], test_pyramid_data[i].nrm[2]);
+	}
+	*/
+	short headerInd[ARRAYSIZE(Barrel_indicies)];
+	for (int i = 0; i < ARRAYSIZE(Barrel_indicies); i++)
+	{
+		headerInd[i] = Barrel_indicies[i];
+	}
+
+	D3D11_BUFFER_DESC headerBD;
+	ZeroMemory(&headerBD, sizeof(headerBD));
+	headerBD.Usage = D3D11_USAGE_IMMUTABLE;
+	headerBD.ByteWidth = sizeof(SIMPLE_VERTEX) * ARRAYSIZE(pyramid);
+	headerBD.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	headerBD.CPUAccessFlags = NULL;
+
+	D3D11_SUBRESOURCE_DATA headerBufferData;
+	ZeroMemory(&headerBufferData, sizeof(headerBufferData));
+	headerBufferData.pSysMem = pyramid;
+	device->CreateBuffer(&headerBD, &headerBufferData, &pVBuffer);
+
+
+	// create index buffer
+	headerBD.Usage = D3D11_USAGE_IMMUTABLE;
+	headerBD.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	headerBD.CPUAccessFlags = NULL;
+	headerBD.ByteWidth = sizeof(short) * ARRAYSIZE(headerInd);
+
+	headerBufferData.pSysMem = headerInd;
+
+	device->CreateBuffer(&headerBD, &headerBufferData, &pIBuffer);
+
+	return true;
+}
 
 //************************************************************
 //************ CREATION OF OBJECTS & RESOURCES ***************
@@ -227,6 +285,10 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 		//{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 	};
 	device->CreateInputLayout(vLayout, ARRAYSIZE(vLayout), Trivial_VS, sizeof(Trivial_VS), &inputLayout);
+
+
+	// LOAD PYRAMID 
+	LoadPyramid();
 
 	// DEFINE CUBE DATA
 
@@ -342,7 +404,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	viewM = XMMatrixLookAtLH(Eye, At, Up);
 
 	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), BACKBUFFER_WIDTH / (FLOAT)BACKBUFFER_HEIGHT, 0.01f, 100.0f);
-	lightDir = XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f);
+	lightDir = XMFLOAT4(1.5f, 0.0f, 0.0f, 1.0f);
 
 	// load texture
 	CreateDDSTextureFromFile(device, L"crate1_diffuse.dds", nullptr, &textureRV);
@@ -390,7 +452,7 @@ bool DEMO_APP::Run()
 	// UPDATE MATRIX DATA
 	double time = timer.TotalTime();
 
-	worldM = XMMatrixRotationY(-time);
+	//worldM = XMMatrixRotationY(-time);
 
 	XMMATRIX spinM = XMMatrixRotationY(-time);
 	XMMATRIX orbitM = XMMatrixRotationY(-time * 1.5f);
@@ -398,8 +460,8 @@ bool DEMO_APP::Run()
 	XMMATRIX scaleM = XMMatrixScaling(0.25f, 0.25f, 0.25f);
 	worldM2 = scaleM * spinM * translateM * orbitM;
 
-	XMMATRIX lightSpin = XMMatrixRotationY(-time * 1.5f);
-	//XMStoreFloat4(&lightDir,XMVector3Transform(XMLoadFloat4(&lightDir), lightSpin));
+	XMMATRIX lightSpin = XMMatrixRotationY(-timer.Delta() * 1.5f);
+	XMStoreFloat4(&lightDir,XMVector3Transform(XMLoadFloat4(&lightDir), lightSpin));
 
 	// DRAW FIRST CUBE
 	XMMATRIX scaleM2 = XMMatrixScaling(5.25f, 0.1f, 5.25f);
@@ -422,7 +484,7 @@ bool DEMO_APP::Run()
 	context->IASetVertexBuffers(0, 1, &vertexBuffer, &strides, &offsets);
 	context->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R16_UINT, 0);
 
-	context->DrawIndexed(36, 0, 0);
+	//context->DrawIndexed(36, 0, 0);
 
 	// DRAW SECOND CUBE
 
@@ -441,6 +503,19 @@ bool DEMO_APP::Run()
 	context->Unmap(constantBuffer, NULL);
 	context->DrawIndexed(36, 0, 0);
 
+
+	//DRAW PYRAMID!!
+	context->IASetVertexBuffers(0, 1, &pVBuffer, &strides, &offsets);
+	context->IASetIndexBuffer(pIBuffer, DXGI_FORMAT_R16_UINT, 0);
+
+	XMMATRIX scaleBarrel = XMMatrixScaling(0.1f, 0.1f, 0.1f);
+
+	cbData.world = scaleBarrel * worldM;
+	D3D11_MAPPED_SUBRESOURCE pyramidSub;
+	context->Map(constantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &pyramidSub);
+	memcpy(pyramidSub.pData, &cbData, sizeof(cbData));
+	context->Unmap(constantBuffer, NULL);
+	context->DrawIndexed(ARRAYSIZE(Barrel_indicies), 0, 0);
 
 	swap->Present(0, 0);
 	return true;
@@ -473,6 +548,8 @@ bool DEMO_APP::ShutDown()
 	textureRV->Release();
 	textureSampler->Release();
 
+	pVBuffer->Release();
+	pIBuffer->Release();
 
 	UnregisterClass(L"DirectXApplication", application);
 	return true;
@@ -536,8 +613,6 @@ bool DEMO_APP::MoveCamera()
 	float activeKeys[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 	float keyEffect[] = { 1, -1, -1, 1, 1, -1, -1, 1, 0 };
 
-	
-
 	static POINT prev;
 	if (prev.x == NULL)
 	{
@@ -550,7 +625,6 @@ bool DEMO_APP::MoveCamera()
 	float cursX = ((float)cursorPos.x - (float)prev.x) / 250.0f;
 	float cursY = ((float)cursorPos.y - (float)prev.y) / -250.0f;
 
-
 	// get active inputs
 	for (int i = 0; i < ARRAYSIZE(inputs); i++)
 	{
@@ -559,6 +633,7 @@ bool DEMO_APP::MoveCamera()
 			activeKeys[i] = 1;
 		}
 	}
+
 	// change FOV for zooming
 	currentFOV += (30 * speed * ((activeKeys[6] * keyEffect[6]) + (activeKeys[7] * keyEffect[7])));
 	if (currentFOV < minFOV)
@@ -591,11 +666,8 @@ bool DEMO_APP::MoveCamera()
 	);
 
 
-
 	XMMATRIX translate = XMMatrixTranslation(translation.x, translation.y, translation.z);
-	
 	worldViewM = translate * worldViewM;
-	
 	viewM = XMMatrixInverse(0, worldViewM);
 
 	//update proj matrix with new FOV
@@ -603,7 +675,6 @@ bool DEMO_APP::MoveCamera()
 	swap->GetDesc(&current);
 	
 	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), (float)current.BufferDesc.Width / (float)current.BufferDesc.Height, 0.1f, 100.0f);
-	//projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), (float)current.BufferDesc.Width / (float)current.BufferDesc.Width, 0.1f, 100.0f);
 
 	prev = cursorPos;
 	return true;

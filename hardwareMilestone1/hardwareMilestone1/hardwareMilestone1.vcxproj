@@ -166,7 +166,9 @@
     <ClCompile Include="XTime.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Barrel.h" />
     <ClInclude Include="DDSTextureLoader.h" />
+    <ClInclude Include="test pyramid.h" />
     <ClInclude Include="XTime.h" />
   </ItemGroup>
   <ItemGroup>

@@ -32,6 +32,12 @@
     <ClInclude Include="DDSTextureLoader.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="test pyramid.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Barrel.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Trivial_VS.hlsl" />
