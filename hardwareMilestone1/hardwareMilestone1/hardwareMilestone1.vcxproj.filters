@@ -47,5 +47,8 @@
     <Image Include="crate1_diffuse.dds">
       <Filter>Resource Files</Filter>
     </Image>
+    <Image Include="barrel.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
   </ItemGroup>
 </Project>

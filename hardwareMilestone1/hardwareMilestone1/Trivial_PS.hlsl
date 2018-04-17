@@ -25,7 +25,7 @@ float4 main(OUTPUT_VERTEX vert) : SV_TARGET
 
 	//float4 final = 0;
 	float4 final = tex.Sample(sampl, vert.texOut);
-	float4 ambient = final * float4(0.5, 0.5, 0.5, 1);
+	float4 ambient = final * float4(0.25, 0.25, 0.25, 1);
 	final *= saturate(dot(normalize(-lightDirection.xyz), normalize(vert.norm)) * lightColor);
 	//final = lightColor;
 	final.a = 1;

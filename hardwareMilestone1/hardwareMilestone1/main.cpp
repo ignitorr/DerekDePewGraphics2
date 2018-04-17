@@ -73,9 +73,11 @@ class DEMO_APP
 	ID3D11Buffer				*indexBuffer;
 	ID3D11Buffer				*constantBuffer;
 
-	// PYRAMID VARS
+	// BARREL VARS
 	ID3D11Buffer				*pVBuffer;
 	ID3D11Buffer				*pIBuffer;
+	ID3D11ShaderResourceView	*pTextureRV;
+	ID3D11SamplerState			*pTextureSampler;
 
 	XMMATRIX					worldM;
 	XMMATRIX					viewM;
@@ -288,7 +290,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 
 	// LOAD PYRAMID 
-	LoadPyramid();
+	LoadPyramid(); //originally loaded a pyramid, now a barrel
 
 	// DEFINE CUBE DATA
 
@@ -419,6 +421,10 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	samplerDesc.MinLOD = 0;
 	samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
 	device->CreateSamplerState(&samplerDesc, &textureSampler);
+
+	// load barrel texture
+	CreateDDSTextureFromFile(device, L"barrel.dds", nullptr, &pTextureRV);
+	device->CreateSamplerState(&samplerDesc, &pTextureSampler);
 }
 
 //************************************************************
@@ -471,7 +477,7 @@ bool DEMO_APP::Run()
 	cbData.proj = projM;
 
 	cbData.lightDirection = lightDir;
-	cbData.lightColor = XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f);
+	cbData.lightColor = XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f);
 
 	D3D11_MAPPED_SUBRESOURCE cubeSub;
 	context->Map(constantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &cubeSub);
@@ -507,6 +513,9 @@ bool DEMO_APP::Run()
 	//DRAW PYRAMID!!
 	context->IASetVertexBuffers(0, 1, &pVBuffer, &strides, &offsets);
 	context->IASetIndexBuffer(pIBuffer, DXGI_FORMAT_R16_UINT, 0);
+
+	context->PSSetShaderResources(0, 1, &pTextureRV);
+	context->PSSetSamplers(0, 1, &pTextureSampler);
 
 	XMMATRIX scaleBarrel = XMMatrixScaling(0.1f, 0.1f, 0.1f);
 
