@@ -31,8 +31,8 @@ using namespace DirectX;
 #include "Trivial_VS.csh"
 #include "Trivial_PS.csh"
 
-#define BACKBUFFER_WIDTH	500
-#define BACKBUFFER_HEIGHT	500
+#define BACKBUFFER_WIDTH	800
+#define BACKBUFFER_HEIGHT	800
 
 //************************************************************
 //************ SIMPLE WINDOWS APP CLASS **********************
@@ -78,6 +78,8 @@ class DEMO_APP
 
 	XMMATRIX					worldM2;
 
+	XMFLOAT4 lightDir;
+
 	XTime timer;
 
 	struct MATRIX_DATA
@@ -85,6 +87,9 @@ class DEMO_APP
 		XMMATRIX world;
 		XMMATRIX view;
 		XMMATRIX proj;
+
+		XMFLOAT4 lightDirection;
+		XMFLOAT4 lightColor;
 	};
 
 
@@ -94,6 +99,7 @@ public:
 		XMFLOAT3 xyz;
 		//XMFLOAT4 color;
 		XMFLOAT2 uv;
+		XMFLOAT3 normal;
 	};
 
 	DEMO_APP(HINSTANCE hinst, WNDPROC proc);
@@ -144,8 +150,8 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	// swapchain desc
 	DXGI_SWAP_CHAIN_DESC sd = {};
 	sd.BufferCount = 1;
-	sd.BufferDesc.Width = 500;
-	sd.BufferDesc.Height = 500;
+	sd.BufferDesc.Width = BACKBUFFER_WIDTH;
+	sd.BufferDesc.Height = BACKBUFFER_HEIGHT;
 	sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 	sd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
@@ -175,8 +181,8 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	device->CreateRenderTargetView(backBuffer, NULL, &rtv);
 	backBuffer->Release();
 	// SET VIEWPORT
-	viewport.Width = 500;
-	viewport.Height = 500;
+	viewport.Width = BACKBUFFER_WIDTH;
+	viewport.Height = BACKBUFFER_HEIGHT;
 	viewport.MinDepth = 0.0f;
 	viewport.MaxDepth = 1.0f;
 	viewport.TopLeftX = 0;
@@ -216,7 +222,8 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	{
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		//{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 	};
 	device->CreateInputLayout(vLayout, ARRAYSIZE(vLayout), Trivial_VS, sizeof(Trivial_VS), &inputLayout);
@@ -236,35 +243,35 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 		{ XMFLOAT3(0.5f,-0.5f, 0.5f), XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f) },
 		{ XMFLOAT3(-0.5f,-0.5f, 0.5f), XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f) },
 		*/
-		{ XMFLOAT3(-0.5f, 0.5f,-0.5f), XMFLOAT2(1.0f, 0.0f) },
-		{ XMFLOAT3(0.5f, 0.5f,-0.5f), XMFLOAT2(0.0f, 0.0f) },
-		{ XMFLOAT3(0.5f,0.5f,0.5f), XMFLOAT2(0.0f, 1.0f) },
-		{ XMFLOAT3(-0.5f,0.5f,0.5f), XMFLOAT2(1.0f, 1.0f) },
+		{ XMFLOAT3(-0.5f, 0.5f,-0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
+		{ XMFLOAT3(0.5f, 0.5f,-0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
+		{ XMFLOAT3(0.5f,0.5f,0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
+		{ XMFLOAT3(-0.5f,0.5f,0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
 
-		{ XMFLOAT3(-0.5f, -0.5f, -0.5f), XMFLOAT2(0.0f, 0.0f) },
-		{ XMFLOAT3(0.5f, -0.5f, -0.5f), XMFLOAT2(1.0f, 0.0f) },
-		{ XMFLOAT3(0.5f,-0.5f, 0.5f), XMFLOAT2(1.0f, 1.0f) },
-		{ XMFLOAT3(-0.5f,-0.5f, 0.5f), XMFLOAT2(0.0f, 1.0f) },
+		{ XMFLOAT3(-0.5f, -0.5f, -0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
+		{ XMFLOAT3(0.5f, -0.5f, -0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
+		{ XMFLOAT3(0.5f,-0.5f, 0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
+		{ XMFLOAT3(-0.5f,-0.5f, 0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
 
-		{ XMFLOAT3(-0.5f,-0.5f, 0.5f), XMFLOAT2(0.0f, 1.0f) },
-		{ XMFLOAT3(-0.5f,-0.5f, -0.5f), XMFLOAT2(1.0f, 1.0f) },
-		{ XMFLOAT3(-0.5f,0.5f, -0.5f), XMFLOAT2(1.0f, 0.0f) },
-		{ XMFLOAT3(-0.5f,0.5f, 0.5f), XMFLOAT2(0.0f, 0.0f) },
+		{ XMFLOAT3(-0.5f,-0.5f, 0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
+		{ XMFLOAT3(-0.5f,-0.5f, -0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
+		{ XMFLOAT3(-0.5f,0.5f, -0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
+		{ XMFLOAT3(-0.5f,0.5f, 0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
 
-		{ XMFLOAT3(0.5f, -0.5f, 0.5f), XMFLOAT2(1.0f, 1.0f) },
-		{ XMFLOAT3(0.5f, -0.5f, -0.5f), XMFLOAT2(0.0f, 1.0f) },
-		{ XMFLOAT3(0.5f, 0.5f, -0.5f), XMFLOAT2(0.0f, 0.0f) },
-		{ XMFLOAT3(0.5f, 0.5f, 0.5f), XMFLOAT2(1.0f, 0.0f) },
+		{ XMFLOAT3(0.5f, -0.5f, 0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
+		{ XMFLOAT3(0.5f, -0.5f, -0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
+		{ XMFLOAT3(0.5f, 0.5f, -0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
+		{ XMFLOAT3(0.5f, 0.5f, 0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
 
-		{ XMFLOAT3(-0.5f, -0.5f, -0.5f), XMFLOAT2(0.0f, 1.0f) },
-		{ XMFLOAT3(0.5f, -0.5f, -0.5f), XMFLOAT2(1.0f, 1.0f) },
-		{ XMFLOAT3(0.5f, 0.5f, -0.5f), XMFLOAT2(1.0f, 0.0f) },
-		{ XMFLOAT3(-0.5f, 0.5f, -0.5f), XMFLOAT2(0.0f, 0.0f) },
+		{ XMFLOAT3(-0.5f, -0.5f, -0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
+		{ XMFLOAT3(0.5f, -0.5f, -0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
+		{ XMFLOAT3(0.5f, 0.5f, -0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
+		{ XMFLOAT3(-0.5f, 0.5f, -0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
 
-		{ XMFLOAT3(-0.5f, -0.5f, 0.5f), XMFLOAT2(1.0f, 1.0f) },
-		{ XMFLOAT3(0.5f, -0.5f, 0.5f), XMFLOAT2(0.0f, 1.0f) },
-		{ XMFLOAT3(0.5f, 0.5f, 0.5f), XMFLOAT2(0.0f, 0.0f) },
-		{ XMFLOAT3(-0.5f, 0.5f, 0.5f), XMFLOAT2(1.0f, 0.0f) },
+		{ XMFLOAT3(-0.5f, -0.5f, 0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
+		{ XMFLOAT3(0.5f, -0.5f, 0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
+		{ XMFLOAT3(0.5f, 0.5f, 0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
+		{ XMFLOAT3(-0.5f, 0.5f, 0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
 
 	};
 	short cubeInd[] =
@@ -335,7 +342,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	viewM = XMMatrixLookAtLH(Eye, At, Up);
 
 	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), BACKBUFFER_WIDTH / (FLOAT)BACKBUFFER_HEIGHT, 0.01f, 100.0f);
-
+	lightDir = XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f);
 
 	// load texture
 	CreateDDSTextureFromFile(device, L"crate1_diffuse.dds", nullptr, &textureRV);
@@ -375,6 +382,7 @@ bool DEMO_APP::Run()
 
 	// SET CB AND SHADERS
 	context->VSSetConstantBuffers(0, 1, &constantBuffer);
+	context->PSSetConstantBuffers(0, 1, &constantBuffer);
 	context->VSSetShader(vs, 0, 0);
 	context->PSSetShader(ps, 0, 0);
 	context->PSSetShaderResources(0, 1, &textureRV);
@@ -382,7 +390,7 @@ bool DEMO_APP::Run()
 	// UPDATE MATRIX DATA
 	double time = timer.TotalTime();
 
-	//worldM = XMMatrixRotationY(-time);
+	worldM = XMMatrixRotationY(-time);
 
 	XMMATRIX spinM = XMMatrixRotationY(-time);
 	XMMATRIX orbitM = XMMatrixRotationY(-time * 1.5f);
@@ -390,12 +398,18 @@ bool DEMO_APP::Run()
 	XMMATRIX scaleM = XMMatrixScaling(0.25f, 0.25f, 0.25f);
 	worldM2 = scaleM * spinM * translateM * orbitM;
 
+	XMMATRIX lightSpin = XMMatrixRotationY(-time * 1.5f);
+	//XMStoreFloat4(&lightDir,XMVector3Transform(XMLoadFloat4(&lightDir), lightSpin));
+
 	// DRAW FIRST CUBE
 	XMMATRIX scaleM2 = XMMatrixScaling(5.25f, 0.1f, 5.25f);
 	MATRIX_DATA cbData;
 	cbData.world = worldM;
 	cbData.view = viewM;
 	cbData.proj = projM;
+
+	cbData.lightDirection = lightDir;
+	cbData.lightColor = XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f);
 
 	D3D11_MAPPED_SUBRESOURCE cubeSub;
 	context->Map(constantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &cubeSub);
@@ -419,7 +433,9 @@ bool DEMO_APP::Run()
 	cbData2.proj = projM;
 	*/
 	cbData.world = worldM2;
+	//cbData.lightColor = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
 	D3D11_MAPPED_SUBRESOURCE cubeSub2;
+
 	context->Map(constantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &cubeSub2);
 	memcpy(cubeSub2.pData, &cbData, sizeof(cbData));
 	context->Unmap(constantBuffer, NULL);
@@ -453,6 +469,9 @@ bool DEMO_APP::ShutDown()
 	vertexBuffer->Release();
 	indexBuffer->Release();
 	constantBuffer->Release();
+
+	textureRV->Release();
+	textureSampler->Release();
 
 
 	UnregisterClass(L"DirectXApplication", application);
@@ -510,10 +529,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 //*****************************************//
 bool DEMO_APP::MoveCamera()
 {
-	DXGI_SWAP_CHAIN_DESC current;
-	swap->GetDesc(&current);
 	// speed modifier
-	float speed = 0.001f;
+	float speed = 0.005f;
 
 	unsigned int inputs[] = { 'W', 'A', 'S', 'D', 'Q', 'E', VK_UP, VK_DOWN, VK_RBUTTON};
 	float activeKeys[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
@@ -582,7 +599,10 @@ bool DEMO_APP::MoveCamera()
 	viewM = XMMatrixInverse(0, worldViewM);
 
 	//update proj matrix with new FOV
-
+	DXGI_SWAP_CHAIN_DESC current;
+	swap->GetDesc(&current);
+	
+	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), (float)current.BufferDesc.Width / (float)current.BufferDesc.Height, 0.1f, 100.0f);
 	//projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), (float)current.BufferDesc.Width / (float)current.BufferDesc.Width, 0.1f, 100.0f);
 
 	prev = cursorPos;
@@ -610,16 +630,16 @@ bool DEMO_APP::ResizeWindow()
 	
 	tempBackBuffer->Release();
 
-	D3D11_VIEWPORT vp;
-	vp.Width = float(current.BufferDesc.Width);
-	vp.Height = float(current.BufferDesc.Height);
-	vp.MinDepth = 0.0f;
-	vp.MaxDepth = 1.0f;
-	vp.TopLeftX = 0;
-	vp.TopLeftY = 0;
-	context->RSSetViewports(1, &vp);
+	//D3D11_VIEWPORT vp;
+	viewport.Width = float(current.BufferDesc.Width);
+	viewport.Height = float(current.BufferDesc.Height);
+	viewport.MinDepth = 0.0f;
+	viewport.MaxDepth = 1.0f;
+	viewport.TopLeftX = 0;
+	viewport.TopLeftY = 0;
+	context->RSSetViewports(1, &viewport);
 
-	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), vp.Width / vp.Height, 0.1f, 100.0f);
+	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), viewport.Width / viewport.Height, 0.1f, 100.0f);
 
 	depthStencil->Release();
 	depthStencilView->Release();
@@ -627,8 +647,8 @@ bool DEMO_APP::ResizeWindow()
 	//create new zbuffer
 	D3D11_TEXTURE2D_DESC depthDesc;
 	ZeroMemory(&depthDesc, sizeof(depthDesc));
-	depthDesc.Width = vp.Width;
-	depthDesc.Height = vp.Height;
+	depthDesc.Width = viewport.Width;
+	depthDesc.Height = viewport.Height;
 	depthDesc.Usage = D3D11_USAGE_DEFAULT;
 	depthDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
 	depthDesc.MipLevels = 1;
