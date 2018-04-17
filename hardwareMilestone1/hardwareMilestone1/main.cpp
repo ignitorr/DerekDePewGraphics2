@@ -559,6 +559,8 @@ bool DEMO_APP::ShutDown()
 
 	pVBuffer->Release();
 	pIBuffer->Release();
+	pTextureRV->Release();
+	pTextureSampler->Release();
 
 	UnregisterClass(L"DirectXApplication", application);
 	return true;
