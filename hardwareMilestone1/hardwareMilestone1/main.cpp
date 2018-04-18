@@ -35,7 +35,7 @@ using namespace DirectX;
 #define BACKBUFFER_WIDTH	1200
 #define BACKBUFFER_HEIGHT	800
 
-#define MESH_COUNT 10;
+#define MESH_COUNT 10
 
 //************************************************************
 //************ SIMPLE WINDOWS APP CLASS **********************
@@ -95,23 +95,23 @@ class DEMO_APP
 	unsigned int				currentIndex = 0; // every mesh created will +1 this, used for indexing when adding to the arrays
 	ID3D11Buffer				*vertexBuffers[MESH_COUNT]; // create array of vertexBuffers. if all arent used thats okay
 	ID3D11Buffer				*indexBuffers[MESH_COUNT];
-	unsigned int				numVerts[MESH_COUNT]; // store number of verts/indices for easy draw calls :)
+	unsigned int				numVertices[MESH_COUNT]; // store number of verts/indices for easy draw calls :)
 	unsigned int				numIndices[MESH_COUNT];
 
 
 	XMMATRIX					worldMatrices[MESH_COUNT]; // store matrices for each object.  
+	
 
 	// probably will want arrays for textures as well, right?
 
 	/*
 	
 	NEXT STEP:
-	CHANGE LOAD FROM HEADER FILE TO FUNCTION WITH ANY PASSED IN MESH
+	update barrel to load in using the new arrays
 	THEN:
-	UPDATE CUBES + BARREL TO LOAD IN USING NEW ARRAYS
-	
-	*/
+	update Draw() to use the new arrays
 
+	*/
 
 	struct MATRIX_DATA
 	{
@@ -125,6 +125,7 @@ class DEMO_APP
 
 
 	bool LoadPyramid();
+	bool LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int indices[], unsigned int numVerts, unsigned int numInd);
 
 public:
 	struct SIMPLE_VERTEX
@@ -148,6 +149,62 @@ public:
 
 };
 
+
+// currently this requires atleast one header file to be loaded in that defines the OBJ_VERT class...
+bool DEMO_APP::LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int indices[], unsigned int numVerts, unsigned int numInd)
+{
+	SIMPLE_VERTEX *meshVerts = new SIMPLE_VERTEX[numVerts];
+	//SIMPLE_VERTEX meshVerts[numVerts];
+	short* meshIndices = new short[numInd];
+	// first copy the verts
+	for (int i = 0; i < numVerts; i++)
+	{
+		meshVerts[i].xyz = XMFLOAT3(verts[i].pos[0], verts[i].pos[1], verts[i].pos[2]);
+		meshVerts[i].uv = XMFLOAT2(verts[i].uvw[0], verts[i].uvw[1]);
+		meshVerts[i].normal = XMFLOAT3(verts[i].nrm[0], verts[i].nrm[1], verts[i].nrm[2]);
+	}
+	// next copy the index list
+	for (int i = 0; i < numInd; i++)
+	{
+		meshIndices[i] = indices[i];
+	}
+
+	// create vertex buffer
+	D3D11_BUFFER_DESC headerBD;
+	ZeroMemory(&headerBD, sizeof(headerBD));
+	headerBD.Usage = D3D11_USAGE_IMMUTABLE;
+	headerBD.ByteWidth = sizeof(SIMPLE_VERTEX) * numVerts;
+	headerBD.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	headerBD.CPUAccessFlags = NULL;
+
+	D3D11_SUBRESOURCE_DATA headerBufferData;
+	ZeroMemory(&headerBufferData, sizeof(headerBufferData));
+	headerBufferData.pSysMem = &meshVerts;
+	device->CreateBuffer(&headerBD, &headerBufferData, &(vertexBuffers[currentIndex]));
+
+	// create index buffer
+	headerBD.Usage = D3D11_USAGE_IMMUTABLE;
+	headerBD.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	headerBD.CPUAccessFlags = NULL;
+	headerBD.ByteWidth = sizeof(short) * numInd;
+
+	headerBufferData.pSysMem = &meshIndices;
+	device->CreateBuffer(&headerBD, &headerBufferData, &indexBuffers[currentIndex]);
+
+	//update number arrays
+	numVertices[currentIndex] = numVerts;
+	numIndices[currentIndex] = numInd;
+
+	// TODO: load texture?
+	// will need to add char arg to function
+
+
+	// update currentIndex before exiting
+	currentIndex += 1;
+
+	return true;
+}
+
 //TODO: make this work with ANY passed vert array and index array
 // bool DEMO_APP::LoadFromHeader(vert_list, indices)
 bool DEMO_APP::LoadPyramid()
@@ -158,6 +215,7 @@ bool DEMO_APP::LoadPyramid()
 		pyramid[i].xyz = XMFLOAT3(Barrel_data[i].pos[0], Barrel_data[i].pos[1], Barrel_data[i].pos[2]);
 		pyramid[i].uv = XMFLOAT2(Barrel_data[i].uvw[0], Barrel_data[i].uvw[1]);
 		pyramid[i].normal = XMFLOAT3(Barrel_data[i].nrm[0], Barrel_data[i].nrm[1], Barrel_data[i].nrm[2]);
+		
 	}
 	/*
 	for (int i = 0; i < ARRAYSIZE(test_pyramid_data); i++)
@@ -312,6 +370,10 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	};
 	device->CreateInputLayout(vLayout, ARRAYSIZE(vLayout), Trivial_VS, sizeof(Trivial_VS), &inputLayout);
 
+	// LOAD MESHES AND BUFFERS
+
+	worldMatrices[currentIndex] = XMMatrixIdentity();
+	LoadMeshFromHeader(Barrel_data, Barrel_indicies, ARRAYSIZE(Barrel_data), ARRAYSIZE(Barrel_indicies));
 
 	// LOAD PYRAMID 
 	LoadPyramid(); //originally loaded a pyramid, now a barrel
@@ -548,7 +610,15 @@ bool DEMO_APP::Run()
 	context->Map(constantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &pyramidSub);
 	memcpy(pyramidSub.pData, &cbData, sizeof(cbData));
 	context->Unmap(constantBuffer, NULL);
-	context->DrawIndexed(ARRAYSIZE(Barrel_indicies), 0, 0);
+	//context->DrawIndexed(ARRAYSIZE(Barrel_indicies), 0, 0);
+
+	// LOOP THRU ARRAYS AND DRAW =)
+	/*
+	for (int i = 0; i < currentIndex; i++)
+	{
+		context->IASetVertexBuffers(0, 1, vertexBuffers[i], &strides, &offsets);
+	}
+	*/
 
 	swap->Present(0, 0);
 	return true;
