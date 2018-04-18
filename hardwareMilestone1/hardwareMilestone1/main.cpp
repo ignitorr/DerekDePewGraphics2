@@ -32,8 +32,10 @@ using namespace DirectX;
 #include "Trivial_VS.csh"
 #include "Trivial_PS.csh"
 
-#define BACKBUFFER_WIDTH	800
+#define BACKBUFFER_WIDTH	1200
 #define BACKBUFFER_HEIGHT	800
+
+#define MESH_COUNT 10;
 
 //************************************************************
 //************ SIMPLE WINDOWS APP CLASS **********************
@@ -44,8 +46,6 @@ class DEMO_APP
 	HINSTANCE						application;
 	WNDPROC							appWndProc;
 	HWND							window;
-
-	
 
 
 
@@ -88,6 +88,30 @@ class DEMO_APP
 	XMFLOAT4 lightDir;
 
 	XTime timer;
+
+	// WIP
+	// redoing some of the way i organize things to make model addition easier
+	// will need to loop through these buffer arrays and release each one i believe
+	unsigned int				currentIndex = 0; // every mesh created will +1 this, used for indexing when adding to the arrays
+	ID3D11Buffer				*vertexBuffers[MESH_COUNT]; // create array of vertexBuffers. if all arent used thats okay
+	ID3D11Buffer				*indexBuffers[MESH_COUNT];
+	unsigned int				numVerts[MESH_COUNT]; // store number of verts/indices for easy draw calls :)
+	unsigned int				numIndices[MESH_COUNT];
+
+
+	XMMATRIX					worldMatrices[MESH_COUNT]; // store matrices for each object.  
+
+	// probably will want arrays for textures as well, right?
+
+	/*
+	
+	NEXT STEP:
+	CHANGE LOAD FROM HEADER FILE TO FUNCTION WITH ANY PASSED IN MESH
+	THEN:
+	UPDATE CUBES + BARREL TO LOAD IN USING NEW ARRAYS
+	
+	*/
+
 
 	struct MATRIX_DATA
 	{
