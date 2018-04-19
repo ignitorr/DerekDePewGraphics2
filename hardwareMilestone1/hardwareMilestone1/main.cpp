@@ -581,9 +581,9 @@ bool DEMO_APP::Run()
 	//move point light
 	//XMStoreFloat4(&lightPosition, XMVector3Transform(XMLoadFloat4(&lightPosition), XMMatrixTranslation(0.0f, 0.001f, 0.0f)));
 	//cbData.lightPos = lightPosition;
-	cbData.lightPos = XMFLOAT4(5.0f, 2.0f, 0.0f, 1.0f);
+	cbData.lightPos = XMFLOAT4(4.0f, 2.0f, 0.0f, 1.0f);
 	cbData.lightRad = 4.0f;
-	cbData.coneRatio = 0.99f;
+	cbData.coneRatio = 0.95f;
 
 	D3D11_MAPPED_SUBRESOURCE cubeSub;
 	context->Map(constantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &cubeSub);

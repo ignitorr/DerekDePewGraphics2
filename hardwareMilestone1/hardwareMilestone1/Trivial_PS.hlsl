@@ -52,6 +52,14 @@ float4 main(OUTPUT_VERTEX vert) : SV_TARGET
 	float4 lightdir = normalize(lightPos - vert.worldPos);
 	float lightRatio = clamp(dot(lightdir, normalize(vert.norm)), 0, 1);
 	float surfaceRatio = clamp(dot(-lightdir, lightDirection), 0, 1);
+	
+	float att = clamp(length(lightPos - vert.worldPos) / lightRad, 0, 1);
+	att *= att;
+	att = 1.0 - att;
+
+	float innerCone = coneRatio + 0.005f;
+	float edgeAtt = 1.0 - clamp((innerCone - surfaceRatio) / (innerCone - coneRatio), 0, 1);
+	/*
 	float spotFactor;
 	if (surfaceRatio > coneRatio)
 	{
@@ -61,8 +69,10 @@ float4 main(OUTPUT_VERTEX vert) : SV_TARGET
 	{
 		spotFactor = 0;
 	}
+	*/
 	final *= saturate(lightRatio * lightColor);
-	return saturate((final * spotFactor) + ambient);
+	//return saturate((final * spotFactor) + ambient);
+	return saturate((final * edgeAtt * att) + ambient);
 }
 
 /*
