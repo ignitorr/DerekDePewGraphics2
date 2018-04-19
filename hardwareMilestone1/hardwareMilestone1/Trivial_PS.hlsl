@@ -10,6 +10,7 @@ cbuffer THIS_IS_VRAM : register(b0)
 	float4 lightColor;
 	float4 lightPos;
 	float lightRad;
+	float coneRatio;
 };
 
 struct OUTPUT_VERTEX
@@ -32,18 +33,36 @@ float4 main(OUTPUT_VERTEX vert) : SV_TARGET
 	return saturate(final + ambient);
 	*/
 	/*
-	*/
 	// POINT LIGHT CODE
 	float4 final = tex.Sample(sampl, vert.texOut);
 	float4 ambient = final * float4(0.25, 0.25, 0.25, 1);
 	float att = 1.0 - clamp(length(lightPos - vert.worldPos) / lightRad, 0, 1);
 	float4 lightdir = normalize(lightPos - vert.worldPos);
-	//lightdir.w = 1;
-	float4 lightRatio = dot(lightdir, normalize(vert.norm));
+	float lightRatio = clamp(dot(lightdir, normalize(vert.norm)), 0, 1);
 	final *= saturate(lightRatio * lightColor);
 	final.a = 1;
-	//return saturate(final + ambient);
 	return saturate((final * att) + ambient);
+	*/
+
+	// SPOTLIGHT CODE
+	/*
+	*/
+	float4 final = tex.Sample(sampl, vert.texOut);
+	float4 ambient = final * float4(0.25, 0.25, 0.25, 1);
+	float4 lightdir = normalize(lightPos - vert.worldPos);
+	float lightRatio = clamp(dot(lightdir, normalize(vert.norm)), 0, 1);
+	float surfaceRatio = clamp(dot(-lightdir, lightDirection), 0, 1);
+	float spotFactor;
+	if (surfaceRatio > coneRatio)
+	{
+		spotFactor = 1;
+	}
+	else
+	{
+		spotFactor = 0;
+	}
+	final *= saturate(lightRatio * lightColor);
+	return saturate((final * spotFactor) + ambient);
 }
 
 /*

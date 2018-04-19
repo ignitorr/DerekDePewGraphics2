@@ -124,6 +124,7 @@ class DEMO_APP
 		XMFLOAT4 lightColor;
 		XMFLOAT4 lightPos;
 		float lightRad;
+		float coneRatio;
 	};
 
 	XMFLOAT4 lightPosition;
@@ -502,7 +503,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	viewM = XMMatrixLookAtLH(Eye, At, Up);
 
 	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), BACKBUFFER_WIDTH / (FLOAT)BACKBUFFER_HEIGHT, 0.01f, 100.0f);
-	lightDir = XMFLOAT4(1.5f, 0.0f, 0.0f, 1.0f);
+	lightDir = XMFLOAT4(-1.0f, 0.0f, 0.0f, 1.0f);
 
 	// load texture
 	CreateDDSTextureFromFile(device, L"crate1_diffuse.dds", nullptr, &textureRV);
@@ -566,7 +567,7 @@ bool DEMO_APP::Run()
 	worldM2 = scaleM * spinM * translateM * orbitM;
 
 	XMMATRIX lightSpin = XMMatrixRotationY(-timer.Delta() * 1.5f);
-	XMStoreFloat4(&lightDir,XMVector3Transform(XMLoadFloat4(&lightDir), lightSpin));
+	//XMStoreFloat4(&lightDir,XMVector3Transform(XMLoadFloat4(&lightDir), lightSpin));
 
 	// DRAW FIRST CUBE
 	XMMATRIX scaleM2 = XMMatrixScaling(5.25f, 0.1f, 5.25f);
@@ -578,10 +579,11 @@ bool DEMO_APP::Run()
 	cbData.lightDirection = lightDir;
 	cbData.lightColor = XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f);
 	//move point light
-	XMStoreFloat4(&lightPosition, XMVector3Transform(XMLoadFloat4(&lightPosition), XMMatrixTranslation(0.0f, 0.001f, 0.0f)));
-	cbData.lightPos = lightPosition;
-	//cbData.lightPos = XMFLOAT4(0.0f, 2.0f, 0.0f, 1.0f);
+	//XMStoreFloat4(&lightPosition, XMVector3Transform(XMLoadFloat4(&lightPosition), XMMatrixTranslation(0.0f, 0.001f, 0.0f)));
+	//cbData.lightPos = lightPosition;
+	cbData.lightPos = XMFLOAT4(5.0f, 2.0f, 0.0f, 1.0f);
 	cbData.lightRad = 4.0f;
+	cbData.coneRatio = 0.99f;
 
 	D3D11_MAPPED_SUBRESOURCE cubeSub;
 	context->Map(constantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &cubeSub);
