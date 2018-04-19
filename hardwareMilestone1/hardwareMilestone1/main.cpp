@@ -124,6 +124,7 @@ class DEMO_APP
 	};
 
 
+
 	bool LoadPyramid();
 	bool LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int indices[], unsigned int numVerts, unsigned int numInd);
 
@@ -179,8 +180,8 @@ bool DEMO_APP::LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int ind
 
 	D3D11_SUBRESOURCE_DATA headerBufferData;
 	ZeroMemory(&headerBufferData, sizeof(headerBufferData));
-	headerBufferData.pSysMem = &meshVerts;
-	device->CreateBuffer(&headerBD, &headerBufferData, &(vertexBuffers[currentIndex]));
+	headerBufferData.pSysMem = meshVerts;
+	device->CreateBuffer(&headerBD, &headerBufferData, &vertexBuffers[currentIndex]);
 
 	// create index buffer
 	headerBD.Usage = D3D11_USAGE_IMMUTABLE;
@@ -188,7 +189,7 @@ bool DEMO_APP::LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int ind
 	headerBD.CPUAccessFlags = NULL;
 	headerBD.ByteWidth = sizeof(short) * numInd;
 
-	headerBufferData.pSysMem = &meshIndices;
+	headerBufferData.pSysMem = meshIndices;
 	device->CreateBuffer(&headerBD, &headerBufferData, &indexBuffers[currentIndex]);
 
 	//update number arrays
@@ -613,12 +614,23 @@ bool DEMO_APP::Run()
 	//context->DrawIndexed(ARRAYSIZE(Barrel_indicies), 0, 0);
 
 	// LOOP THRU ARRAYS AND DRAW =)
-	/*
+	
 	for (int i = 0; i < currentIndex; i++)
 	{
-		context->IASetVertexBuffers(0, 1, vertexBuffers[i], &strides, &offsets);
+		context->IASetVertexBuffers(0, 1, &vertexBuffers[i], &strides, &offsets);
+		context->IASetIndexBuffer(indexBuffers[i], DXGI_FORMAT_R16_UINT, 0);
+
+		XMMATRIX scaleBarrel = XMMatrixScaling(0.1f, 0.1f, 0.1f);
+
+		cbData.world = scaleBarrel * worldMatrices[i];
+		context->Map(constantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &pyramidSub);
+		memcpy(pyramidSub.pData, &cbData, sizeof(cbData));
+		context->Unmap(constantBuffer, NULL);
+
+		context->DrawIndexed(numIndices[i], 0, 0);
+
 	}
-	*/
+	
 
 	swap->Present(0, 0);
 	return true;
@@ -655,6 +667,12 @@ bool DEMO_APP::ShutDown()
 	pIBuffer->Release();
 	pTextureRV->Release();
 	pTextureSampler->Release();
+
+	for (int i = 0; i < currentIndex; i++) //only loop to current index, otherwise out of bounds
+	{
+		vertexBuffers[i]->Release();
+		indexBuffers[i]->Release();
+	}
 
 	UnregisterClass(L"DirectXApplication", application);
 	return true;
