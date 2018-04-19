@@ -18,6 +18,7 @@
 #include "XTime.h"
 #include "DDSTextureLoader.h"
 #include "Barrel.h"
+#include "test pyramid.h"
 
 using namespace std;
 
@@ -121,9 +122,11 @@ class DEMO_APP
 
 		XMFLOAT4 lightDirection;
 		XMFLOAT4 lightColor;
+		XMFLOAT4 lightPos;
+		float lightRad;
 	};
 
-
+	XMFLOAT4 lightPosition;
 
 	bool LoadPyramid();
 	bool LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int indices[], unsigned int numVerts, unsigned int numInd);
@@ -155,7 +158,6 @@ public:
 bool DEMO_APP::LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int indices[], unsigned int numVerts, unsigned int numInd)
 {
 	SIMPLE_VERTEX *meshVerts = new SIMPLE_VERTEX[numVerts];
-	//SIMPLE_VERTEX meshVerts[numVerts];
 	short* meshIndices = new short[numInd];
 	// first copy the verts
 	for (int i = 0; i < numVerts; i++)
@@ -373,9 +375,16 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	// LOAD MESHES AND BUFFERS
 
-	worldMatrices[currentIndex] = XMMatrixIdentity();
+	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity();
 	LoadMeshFromHeader(Barrel_data, Barrel_indicies, ARRAYSIZE(Barrel_data), ARRAYSIZE(Barrel_indicies));
-
+	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(-1.5f, 2.0f, 0.0f);
+	LoadMeshFromHeader(Barrel_data, Barrel_indicies, ARRAYSIZE(Barrel_data), ARRAYSIZE(Barrel_indicies));
+	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(1.5f, 2.0f, 0.0f);
+	LoadMeshFromHeader(Barrel_data, Barrel_indicies, ARRAYSIZE(Barrel_data), ARRAYSIZE(Barrel_indicies));
+	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(0.0f, 4.0f, 0.0f);
+	LoadMeshFromHeader(Barrel_data, Barrel_indicies, ARRAYSIZE(Barrel_data), ARRAYSIZE(Barrel_indicies));
+	worldMatrices[currentIndex] = XMMatrixScaling(2.0f, 2.0f, 2.0f) * XMMatrixIdentity() * 	XMMatrixTranslation(2.5f, 2.0f, 0.0f);
+	LoadMeshFromHeader(test_pyramid_data, test_pyramid_indicies, ARRAYSIZE(test_pyramid_data), ARRAYSIZE(test_pyramid_indicies));
 	// LOAD PYRAMID 
 	LoadPyramid(); //originally loaded a pyramid, now a barrel
 
@@ -512,6 +521,9 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	// load barrel texture
 	CreateDDSTextureFromFile(device, L"barrel.dds", nullptr, &pTextureRV);
 	device->CreateSamplerState(&samplerDesc, &pTextureSampler);
+
+	//lightPos stuff
+	lightPosition = XMFLOAT4(0.0f, 2.0f, 0.0f, 1.0f);
 }
 
 //************************************************************
@@ -565,6 +577,11 @@ bool DEMO_APP::Run()
 
 	cbData.lightDirection = lightDir;
 	cbData.lightColor = XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f);
+	//move point light
+	XMStoreFloat4(&lightPosition, XMVector3Transform(XMLoadFloat4(&lightPosition), XMMatrixTranslation(0.0f, 0.001f, 0.0f)));
+	cbData.lightPos = lightPosition;
+	//cbData.lightPos = XMFLOAT4(0.0f, 2.0f, 0.0f, 1.0f);
+	cbData.lightRad = 4.0f;
 
 	D3D11_MAPPED_SUBRESOURCE cubeSub;
 	context->Map(constantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &cubeSub);
@@ -622,7 +639,8 @@ bool DEMO_APP::Run()
 
 		XMMATRIX scaleBarrel = XMMatrixScaling(0.1f, 0.1f, 0.1f);
 
-		cbData.world = scaleBarrel * worldMatrices[i];
+		//cbData.world = scaleBarrel * worldMatrices[i];
+		cbData.world = worldMatrices[i];
 		context->Map(constantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &pyramidSub);
 		memcpy(pyramidSub.pData, &cbData, sizeof(cbData));
 		context->Unmap(constantBuffer, NULL);
