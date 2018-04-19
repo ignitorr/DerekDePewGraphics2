@@ -37,6 +37,9 @@ using namespace DirectX;
 #define BACKBUFFER_HEIGHT	800
 
 #define MESH_COUNT 10
+#define D_LIGHTS 1
+#define P_LIGHTS 1
+#define S_LIGHTS 1
 
 //************************************************************
 //************ SIMPLE WINDOWS APP CLASS **********************
@@ -113,7 +116,9 @@ class DEMO_APP
 	update Draw() to use the new arrays
 
 	*/
-
+	
+	// TODO: remove this, replace with the VS_buffer & PS_buffer structs
+	//		 will need to create a new constant buffer for the pixel shader
 	struct MATRIX_DATA
 	{
 		XMMATRIX world;
@@ -126,6 +131,56 @@ class DEMO_APP
 		float lightRad;
 		float coneRatio;
 	};
+
+	//////////////////////
+	// LIGHTING STRUCTS //
+	//////////////////////
+	struct directional_light
+	{
+		XMFLOAT4 lightDirection;
+		XMFLOAT4 lightColor;
+	};
+
+	struct point_light
+	{
+		XMFLOAT4 lightPos;
+		XMFLOAT4 lightColor;
+		float lightRad;
+	};
+
+	struct spot_light
+	{
+		XMFLOAT4 lightDirection;
+		XMFLOAT4 lightPos;
+		XMFLOAT4 lightColor;
+		float lightRad;
+		float outerConeRatio;
+		float innerConeRatio;
+	};
+	//////////////////////////
+	// END LIGHTING STRUCTS //
+	//////////////////////////
+	
+	///////////////////////////////////
+	// VERTEX CONSTANT BUFFER STRUCT //
+	///////////////////////////////////
+	struct VS_BUFFER_DATA
+	{
+		XMMATRIX world;
+		XMMATRIX view;
+		XMMATRIX proj;
+	};
+	//////////////////////////////////
+	// PIXEL CONSTANT BUFFER STRUCT //
+	//////////////////////////////////
+	struct PS_BUFFER_DATA
+	{
+		directional_light directional[D_LIGHTS];
+		point_light point[P_LIGHTS];
+		spot_light spot[S_LIGHTS];
+	};
+
+	
 
 	XMFLOAT4 lightPosition;
 
@@ -374,7 +429,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	};
 	device->CreateInputLayout(vLayout, ARRAYSIZE(vLayout), Trivial_VS, sizeof(Trivial_VS), &inputLayout);
 
-	// LOAD MESHES AND BUFFERS
+	// LOAD MESHES AND THEIR BUFFERS
 
 	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity();
 	LoadMeshFromHeader(Barrel_data, Barrel_indicies, ARRAYSIZE(Barrel_data), ARRAYSIZE(Barrel_indicies));
@@ -505,6 +560,9 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), BACKBUFFER_WIDTH / (FLOAT)BACKBUFFER_HEIGHT, 0.01f, 100.0f);
 	lightDir = XMFLOAT4(-1.0f, 0.0f, 0.0f, 1.0f);
 
+
+	//TODO REMOVE ALL THIS CODE ONCE TEXTURE ARRAYS SUPPORTED
+
 	// load texture
 	CreateDDSTextureFromFile(device, L"crate1_diffuse.dds", nullptr, &textureRV);
 	// create sampler state
@@ -536,7 +594,6 @@ bool DEMO_APP::Run()
 	timer.Signal();
 	MoveCamera();
 	context->OMSetRenderTargets(1, &rtv, depthStencilView);
-	//context->RSSetViewports(1, &viewport);
 
 	// CLEAR RTV TO BLUE
 	FLOAT color[4] = { 0.0, 0.0f, 0.4f, 1.0f };
@@ -639,9 +696,6 @@ bool DEMO_APP::Run()
 		context->IASetVertexBuffers(0, 1, &vertexBuffers[i], &strides, &offsets);
 		context->IASetIndexBuffer(indexBuffers[i], DXGI_FORMAT_R16_UINT, 0);
 
-		XMMATRIX scaleBarrel = XMMatrixScaling(0.1f, 0.1f, 0.1f);
-
-		//cbData.world = scaleBarrel * worldMatrices[i];
 		cbData.world = worldMatrices[i];
 		context->Map(constantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &pyramidSub);
 		memcpy(pyramidSub.pData, &cbData, sizeof(cbData));
@@ -663,8 +717,6 @@ bool DEMO_APP::Run()
 
 bool DEMO_APP::ShutDown()
 {
-	// TODO: PART 1 STEP 6
-
 	swap->Release();
 	device->Release();
 	rtv->Release();

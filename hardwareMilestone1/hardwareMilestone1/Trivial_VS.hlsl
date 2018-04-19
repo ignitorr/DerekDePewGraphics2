@@ -19,9 +19,6 @@ struct OUTPUT_VERTEX
 // TODO: PART 3 STEP 2a
 cbuffer THIS_IS_VRAM : register(b0)
 {
-	//float4 constantColor;
-	//float2 constantOffset;
-	//float2 padding;
 	matrix world;
 	matrix view;
 	matrix proj;

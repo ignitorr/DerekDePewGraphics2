@@ -1,6 +1,38 @@
 Texture2D tex : register(t0);
 SamplerState sampl : register(s0);
 
+
+//////////////////////
+// LIGHTING STRUCTS //
+//////////////////////
+struct directional_light
+{
+	float4 lightDirection;
+	float4 lightColor;
+};
+
+struct point_light
+{
+	float4 lightPos;
+	float4 lightColor;
+	float lightRad;
+};
+
+struct spot_light
+{
+	float4 lightDirection;
+	float4 lightPos;
+	float4 lightColor;
+	float lightRad;
+	float outerConeRatio;
+	float innerConeRatio;
+};
+//////////////////////////
+// END LIGHTING STRUCTS //
+//////////////////////////
+
+
+
 cbuffer THIS_IS_VRAM : register(b0)
 {
 	matrix world;
@@ -11,6 +43,7 @@ cbuffer THIS_IS_VRAM : register(b0)
 	float4 lightPos;
 	float lightRad;
 	float coneRatio;
+
 };
 
 struct OUTPUT_VERTEX
