@@ -105,6 +105,9 @@ class DEMO_APP
 
 	XMMATRIX					worldMatrices[MESH_COUNT]; // store matrices for each object.  
 	
+	ID3D11Buffer				*pixelConstantBuffer;
+	ID3D11Buffer				*vertexConstantBuffer;
+
 
 	// probably will want arrays for textures as well, right?
 
@@ -146,6 +149,7 @@ class DEMO_APP
 		XMFLOAT4 lightPos;
 		XMFLOAT4 lightColor;
 		float lightRad;
+		XMFLOAT3 filler;
 	};
 
 	struct spot_light
@@ -156,6 +160,7 @@ class DEMO_APP
 		float lightRad;
 		float outerConeRatio;
 		float innerConeRatio;
+		float filler;
 	};
 	//////////////////////////
 	// END LIGHTING STRUCTS //
@@ -180,7 +185,7 @@ class DEMO_APP
 		spot_light spot[S_LIGHTS];
 	};
 
-	
+	PS_BUFFER_DATA psData;
 
 	XMFLOAT4 lightPosition;
 
@@ -439,10 +444,10 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	LoadMeshFromHeader(Barrel_data, Barrel_indicies, ARRAYSIZE(Barrel_data), ARRAYSIZE(Barrel_indicies));
 	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(0.0f, 4.0f, 0.0f);
 	LoadMeshFromHeader(Barrel_data, Barrel_indicies, ARRAYSIZE(Barrel_data), ARRAYSIZE(Barrel_indicies));
-	worldMatrices[currentIndex] = XMMatrixScaling(2.0f, 2.0f, 2.0f) * XMMatrixIdentity() * 	XMMatrixTranslation(2.5f, 2.0f, 0.0f);
+	worldMatrices[currentIndex] = XMMatrixScaling(15.0f, 2.0f, 15.0f) * XMMatrixIdentity() * 	XMMatrixTranslation(0.0f, 9.0f, 0.0f);
 	LoadMeshFromHeader(test_pyramid_data, test_pyramid_indicies, ARRAYSIZE(test_pyramid_data), ARRAYSIZE(test_pyramid_indicies));
 	// LOAD PYRAMID 
-	LoadPyramid(); //originally loaded a pyramid, now a barrel
+	//LoadPyramid(); //originally loaded a pyramid, now a barrel
 
 	// DEFINE CUBE DATA
 
@@ -533,12 +538,14 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	//context->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R16_UINT, 0);
 
 	// create constant buffer
+	/*
 	cubeBD.Usage = D3D11_USAGE_DYNAMIC;
 	cubeBD.ByteWidth = sizeof(MATRIX_DATA);
 	cubeBD.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	cubeBD.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 
 	device->CreateBuffer(&cubeBD, NULL, &constantBuffer);
+	*/
 
 	// create matrices
 	worldM = XMMatrixIdentity();
@@ -581,8 +588,36 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	CreateDDSTextureFromFile(device, L"barrel.dds", nullptr, &pTextureRV);
 	device->CreateSamplerState(&samplerDesc, &pTextureSampler);
 
-	//lightPos stuff
-	lightPosition = XMFLOAT4(0.0f, 2.0f, 0.0f, 1.0f);
+	// NEW CONSTANT BUFFERS
+	D3D11_BUFFER_DESC cbDesc;
+	ZeroMemory(&cbDesc, sizeof(cbDesc));
+
+	// FIRST VERTEX CONSTANT BUFFER
+	cbDesc.Usage = D3D11_USAGE_DYNAMIC;
+	cbDesc.ByteWidth = sizeof(VS_BUFFER_DATA);
+	cbDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	cbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	device->CreateBuffer(&cbDesc, NULL, &vertexConstantBuffer);
+
+	// NOW PIXEL CONSTANT BUFFER
+	cbDesc.ByteWidth = sizeof(PS_BUFFER_DATA);
+	device->CreateBuffer(&cbDesc, NULL, &pixelConstantBuffer);
+
+	// for now, just hard code the lights
+	psData.directional[0].lightDirection = XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f);
+	psData.directional[0].lightColor = XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f);
+
+	psData.point[0].lightColor = XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f);
+	psData.point[0].lightPos = XMFLOAT4(0.0f, 2.0f, 0.0f, 1.0f);
+	psData.point[0].lightRad = 5.0f;
+
+	psData.spot[0].lightDirection = XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f);
+	psData.spot[0].lightColor = XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f);
+	psData.spot[0].lightPos = XMFLOAT4(0.0f, 3.0f, 0.0f, 1.0f);
+	psData.spot[0].lightRad = 100.0f;
+	psData.spot[0].outerConeRatio = 0.99f;
+	psData.spot[0].innerConeRatio = 0.992f;
+	
 }
 
 //************************************************************
@@ -606,13 +641,14 @@ bool DEMO_APP::Run()
 	context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
 	// SET CB AND SHADERS
-	context->VSSetConstantBuffers(0, 1, &constantBuffer);
-	context->PSSetConstantBuffers(0, 1, &constantBuffer);
+	context->VSSetConstantBuffers(0, 1, &vertexConstantBuffer);
+	context->PSSetConstantBuffers(0, 1, &pixelConstantBuffer);
 	context->VSSetShader(vs, 0, 0);
 	context->PSSetShader(ps, 0, 0);
 	context->PSSetShaderResources(0, 1, &textureRV);
 	context->PSSetSamplers(0, 1, &textureSampler);
-	// UPDATE MATRIX DATA
+	/*
+	// UPDATE ANY MATRIX DATA
 	double time = timer.TotalTime();
 
 	//worldM = XMMatrixRotationY(-time);
@@ -623,86 +659,57 @@ bool DEMO_APP::Run()
 	XMMATRIX scaleM = XMMatrixScaling(0.25f, 0.25f, 0.25f);
 	worldM2 = scaleM * spinM * translateM * orbitM;
 
-	XMMATRIX lightSpin = XMMatrixRotationY(-timer.Delta() * 1.5f);
-	//XMStoreFloat4(&lightDir,XMVector3Transform(XMLoadFloat4(&lightDir), lightSpin));
-
-	// DRAW FIRST CUBE
-	XMMATRIX scaleM2 = XMMatrixScaling(5.25f, 0.1f, 5.25f);
-	MATRIX_DATA cbData;
-	cbData.world = worldM;
-	cbData.view = viewM;
-	cbData.proj = projM;
-
-	cbData.lightDirection = lightDir;
-	cbData.lightColor = XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f);
-	//move point light
-	//XMStoreFloat4(&lightPosition, XMVector3Transform(XMLoadFloat4(&lightPosition), XMMatrixTranslation(0.0f, 0.001f, 0.0f)));
-	//cbData.lightPos = lightPosition;
-	cbData.lightPos = XMFLOAT4(4.0f, 2.0f, 0.0f, 1.0f);
-	cbData.lightRad = 4.0f;
-	cbData.coneRatio = 0.95f;
-
-	D3D11_MAPPED_SUBRESOURCE cubeSub;
-	context->Map(constantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &cubeSub);
-	memcpy(cubeSub.pData, &cbData, sizeof(cbData));
-	context->Unmap(constantBuffer, NULL);
-
-	UINT strides = sizeof(SIMPLE_VERTEX);
-	UINT offsets = 0;
-	context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	context->IASetVertexBuffers(0, 1, &vertexBuffer, &strides, &offsets);
-	context->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R16_UINT, 0);
-
-	//context->DrawIndexed(36, 0, 0);
-
-	// DRAW SECOND CUBE
-
-	/*
+	// SECOND CUBE STUFF	
 	MATRIX_DATA cbData2;
 	cbData2.world = worldM2;
 	cbData2.view = viewM;
 	cbData2.proj = projM;
-	*/
+	
 	cbData.world = worldM2;
 	//cbData.lightColor = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+	
 	D3D11_MAPPED_SUBRESOURCE cubeSub2;
 
 	context->Map(constantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &cubeSub2);
 	memcpy(cubeSub2.pData, &cbData, sizeof(cbData));
 	context->Unmap(constantBuffer, NULL);
 	context->DrawIndexed(36, 0, 0);
-
-
-	//DRAW PYRAMID!!
-	context->IASetVertexBuffers(0, 1, &pVBuffer, &strides, &offsets);
-	context->IASetIndexBuffer(pIBuffer, DXGI_FORMAT_R16_UINT, 0);
+	*/
+	UINT strides = sizeof(SIMPLE_VERTEX);
+	UINT offsets = 0;
+	context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	//context->IASetVertexBuffers(0, 1, &pVBuffer, &strides, &offsets);
+	//context->IASetIndexBuffer(pIBuffer, DXGI_FORMAT_R16_UINT, 0);
 
 	context->PSSetShaderResources(0, 1, &pTextureRV);
 	context->PSSetSamplers(0, 1, &pTextureSampler);
 
-	XMMATRIX scaleBarrel = XMMatrixScaling(0.1f, 0.1f, 0.1f);
 
-	cbData.world = scaleBarrel * worldM;
-	D3D11_MAPPED_SUBRESOURCE pyramidSub;
-	context->Map(constantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &pyramidSub);
-	memcpy(pyramidSub.pData, &cbData, sizeof(cbData));
-	context->Unmap(constantBuffer, NULL);
-	//context->DrawIndexed(ARRAYSIZE(Barrel_indicies), 0, 0);
+	VS_BUFFER_DATA vsData;
+	vsData.view = viewM;
+	vsData.proj = projM;
 
-	// LOOP THRU ARRAYS AND DRAW =)
+	D3D11_MAPPED_SUBRESOURCE psSub;
+	context->Map(pixelConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &psSub);
+	memcpy(psSub.pData, &psData, sizeof(psData));
+	context->Unmap(pixelConstantBuffer, NULL);
 	
+	// LOOP THRU ARRAYS AND DRAW =)
 	for (int i = 0; i < currentIndex; i++)
 	{
 		context->IASetVertexBuffers(0, 1, &vertexBuffers[i], &strides, &offsets);
 		context->IASetIndexBuffer(indexBuffers[i], DXGI_FORMAT_R16_UINT, 0);
 
-		cbData.world = worldMatrices[i];
-		context->Map(constantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &pyramidSub);
-		memcpy(pyramidSub.pData, &cbData, sizeof(cbData));
-		context->Unmap(constantBuffer, NULL);
+		// update vertex shader with new info
+
+		vsData.world = worldMatrices[i];
+
+		D3D11_MAPPED_SUBRESOURCE vsSub;
+		context->Map(vertexConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
+		memcpy(vsSub.pData, &vsData, sizeof(vsData));
+		context->Unmap(vertexConstantBuffer, NULL);
 
 		context->DrawIndexed(numIndices[i], 0, 0);
-
 	}
 	
 
@@ -730,13 +737,13 @@ bool DEMO_APP::ShutDown()
 
 	vertexBuffer->Release();
 	indexBuffer->Release();
-	constantBuffer->Release();
+	//constantBuffer->Release();
 
 	textureRV->Release();
 	textureSampler->Release();
 
-	pVBuffer->Release();
-	pIBuffer->Release();
+	//pVBuffer->Release();
+	//pIBuffer->Release();
 	pTextureRV->Release();
 	pTextureSampler->Release();
 
@@ -745,6 +752,9 @@ bool DEMO_APP::ShutDown()
 		vertexBuffers[i]->Release();
 		indexBuffers[i]->Release();
 	}
+
+	pixelConstantBuffer->Release();
+	vertexConstantBuffer->Release();
 
 	UnregisterClass(L"DirectXApplication", application);
 	return true;

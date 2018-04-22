@@ -22,11 +22,6 @@ cbuffer THIS_IS_VRAM : register(b0)
 	matrix world;
 	matrix view;
 	matrix proj;
-	float4 lightDirection;
-	float4 lightColor;
-	float4 lightPos;
-	float lightRad;
-	float coneRatio;
 };
 
 OUTPUT_VERTEX main(INPUT_VERTEX fromVertexBuffer)
