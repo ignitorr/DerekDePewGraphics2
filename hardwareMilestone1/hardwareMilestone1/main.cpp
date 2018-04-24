@@ -20,6 +20,8 @@
 #include "Barrel.h"
 #include "test pyramid.h"
 
+#include <vector>
+
 using namespace std;
 
 // BEGIN PART 1
@@ -193,6 +195,7 @@ class DEMO_APP
 
 	bool LoadPyramid();
 	bool LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int indices[], unsigned int numVerts, unsigned int numInd);
+	bool LoadOBJ(const char *filePath);
 
 public:
 	struct SIMPLE_VERTEX
@@ -216,6 +219,188 @@ public:
 
 };
 
+/////////////////////////////////////////////////////////////////////
+// Loads in OBJ, and adds it to the vertex and index buffer arrays //
+/////////////////////////////////////////////////////////////////////
+bool DEMO_APP::LoadOBJ(const char *filePath)
+{
+	// abort if file not found
+	FILE *file = fopen(filePath, "r");
+	if (file == NULL)
+		return false;
+
+	// create vectors for verts, uvs, normals
+	vector<XMFLOAT3> verts;
+	vector<XMFLOAT2> uvs;
+	vector<XMFLOAT3> normals;
+	vector<unsigned int> vertIndices;
+	vector<unsigned int> uvIndices;
+	vector<unsigned int> normIndices;
+
+	while (true)
+	{
+		char line[128];
+		int res = fscanf(file, "%s", line);
+		if (res == EOF)
+			break;
+
+		// vertices
+		if (strcmp(line, "v") == 0)
+		{
+			XMFLOAT3 newVert;
+			fscanf(file, "%f %f %f\n", &newVert.x, &newVert.y, &newVert.z);
+			verts.push_back(newVert);
+		}
+		// UVs
+		else if (strcmp(line, "vt") == 0)
+		{
+			XMFLOAT2 newUV;
+			fscanf(file, "%f %f\n", &newUV.x, &newUV.y);
+			uvs.push_back(newUV);
+		}
+		// normals
+		else if (strcmp(line, "vn") == 0)
+		{
+			XMFLOAT3 newNorm;
+			fscanf(file, "%f %f %f\n", &newNorm.x, &newNorm.y, &newNorm.z);
+			normals.push_back(newNorm);
+		}
+		// triangle list, use for indices
+		else if (strcmp(line, "f") == 0)
+		{
+			unsigned int vertInd[3], uvInd[3], normInd[3];
+			fscanf(file, "%d/%d/%d %d/%d/%d %d/%d/%d\n",
+				&vertInd[0], &uvInd[0], &normInd[0],
+				&vertInd[1], &uvInd[1], &normInd[1],
+				&vertInd[2], &uvInd[2], &normInd[2]);
+
+			vertIndices.push_back(vertInd[0]);
+			vertIndices.push_back(vertInd[1]);
+			vertIndices.push_back(vertInd[2]);
+			uvIndices.push_back(uvInd[0]);
+			uvIndices.push_back(uvInd[1]);
+			uvIndices.push_back(uvInd[2]);
+			normIndices.push_back(normInd[0]);
+			normIndices.push_back(normInd[1]);
+			normIndices.push_back(normInd[2]);
+		}
+	}
+
+	// now take the parsed data and convert it to something usable
+	SIMPLE_VERTEX *meshVerts = new SIMPLE_VERTEX[vertIndices.size()];
+	short *meshIndices = new short[vertIndices.size()];
+
+	//SIMPLE_VERTEX meshVerts[24];
+	//short meshIndices[36];
+
+	// fill out the vertex data
+	unsigned int numVerts = normals.size();
+	unsigned int numInd = vertIndices.size();
+	
+	// since we're looping above the size of the vert array, need to use something else to index into it.
+	unsigned int currentVertexIndex = 0;
+	for (int i = 0; i < numInd; i++)
+	{
+		XMFLOAT3 newVert = verts[vertIndices[i] - 1];
+		XMFLOAT2 newUV = uvs[uvIndices[i] - 1];
+		XMFLOAT3 newNorm = normals[normIndices[i] - 1];
+
+		SIMPLE_VERTEX tempVertex;
+		tempVertex.xyz = newVert;
+		tempVertex.uv = newUV;
+		tempVertex.normal = newNorm;
+
+		// loop through and check if we've made this vertex already
+		bool isNewVert = true;
+		for (int v = 0; v < currentVertexIndex; v++)
+		{
+			if (tempVertex.xyz.x == meshVerts[v].xyz.x && tempVertex.xyz.y == meshVerts[v].xyz.y && tempVertex.xyz.z == meshVerts[v].xyz.z)
+			{
+				if (tempVertex.uv.x == meshVerts[v].uv.x && tempVertex.uv.y == meshVerts[v].uv.y)
+				{
+					if (tempVertex.normal.x == meshVerts[v].normal.x && tempVertex.normal.y == meshVerts[v].normal.y && tempVertex.normal.z == meshVerts[v].normal.z)
+					{
+						isNewVert = false;
+					}
+				}
+			}
+		}
+		if (isNewVert)
+		{
+			meshVerts[currentVertexIndex].xyz = newVert;
+			meshVerts[currentVertexIndex].uv = newUV;
+			meshVerts[currentVertexIndex].normal = newNorm;
+			// update current index
+			currentVertexIndex++;
+		}
+	}
+
+	for (int i = 0; i < vertIndices.size(); i++)
+	{
+		//meshIndices[i] = normIndices[i] - 1;
+		
+		XMFLOAT3 newVert = verts[vertIndices[i] - 1];
+		XMFLOAT2 newUV = uvs[uvIndices[i] - 1];
+		XMFLOAT3 newNorm = normals[normIndices[i] - 1];
+
+		SIMPLE_VERTEX tempVertex;
+		tempVertex.xyz = newVert;
+		tempVertex.uv = newUV;
+		tempVertex.normal = newNorm;
+
+		for (int v = 0; v < normals.size(); v++)
+		{
+			if (tempVertex.xyz.x == meshVerts[v].xyz.x && tempVertex.xyz.y == meshVerts[v].xyz.y && tempVertex.xyz.z == meshVerts[v].xyz.z)
+			{
+				if (tempVertex.uv.x == meshVerts[v].uv.x && tempVertex.uv.y == meshVerts[v].uv.y)
+				{
+					if (tempVertex.normal.x == meshVerts[v].normal.x && tempVertex.normal.y == meshVerts[v].normal.y && tempVertex.normal.z == meshVerts[v].normal.z)
+					{
+						meshIndices[i] = v;
+					}
+				}
+			}
+		}
+		
+
+		//meshIndices[i] = vertIndices[i] - 1;
+		// create vertex using the numbers from each array
+
+		// loop thru vertices and find which one it is
+		// store that number
+	}
+	
+	
+
+	// create vertex buffer
+	D3D11_BUFFER_DESC headerBD;
+	ZeroMemory(&headerBD, sizeof(headerBD));
+	headerBD.Usage = D3D11_USAGE_IMMUTABLE;
+	headerBD.ByteWidth = sizeof(SIMPLE_VERTEX) * normals.size();
+	headerBD.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	headerBD.CPUAccessFlags = NULL;
+
+	D3D11_SUBRESOURCE_DATA headerBufferData;
+	ZeroMemory(&headerBufferData, sizeof(headerBufferData));
+	headerBufferData.pSysMem = meshVerts;
+	device->CreateBuffer(&headerBD, &headerBufferData, &vertexBuffers[currentIndex]);
+
+	// create index buffer
+	headerBD.Usage = D3D11_USAGE_IMMUTABLE;
+	headerBD.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	headerBD.CPUAccessFlags = NULL;
+	headerBD.ByteWidth = sizeof(short) * vertIndices.size();
+
+	headerBufferData.pSysMem = meshIndices;
+	device->CreateBuffer(&headerBD, &headerBufferData, &indexBuffers[currentIndex]);
+
+	//update number arrays
+	numVertices[currentIndex] = normals.size();
+	numIndices[currentIndex] = vertIndices.size();
+
+	currentIndex += 1;
+	return true;
+}
 
 // currently this requires atleast one header file to be loaded in that defines the OBJ_VERT class...
 bool DEMO_APP::LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int indices[], unsigned int numVerts, unsigned int numInd)
@@ -449,6 +634,14 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	LoadMeshFromHeader(Barrel_data, Barrel_indicies, ARRAYSIZE(Barrel_data), ARRAYSIZE(Barrel_indicies));
 	worldMatrices[currentIndex] = XMMatrixScaling(15.0f, 2.0f, 15.0f) * XMMatrixIdentity() * 	XMMatrixTranslation(0.0f, 9.0f, 0.0f);
 	LoadMeshFromHeader(test_pyramid_data, test_pyramid_indicies, ARRAYSIZE(test_pyramid_data), ARRAYSIZE(test_pyramid_indicies));
+
+
+	// testing OBJ loader
+	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * XMMatrixTranslation(-5.0f, 0.0f, 0.0f);
+	bool result = LoadOBJ("Barrel.obj");
+
+	// test over
+
 	// LOAD PYRAMID 
 	//LoadPyramid(); //originally loaded a pyramid, now a barrel
 
@@ -590,7 +783,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	// for now, just hard code the lights
 	psData.directional[0].lightDirection = XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f);
-	psData.directional[0].lightColor = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	psData.directional[0].lightColor = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
 
 	psData.point[0].lightColor = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 	psData.point[0].lightPos = XMFLOAT4(3.75f, 2.0f, 0.0f, 1.0f);
@@ -637,25 +830,23 @@ bool DEMO_APP::Run()
 	double time = timer.TotalTime();
 
 	// first spotlight
-	XMMATRIX spinM = XMMatrixRotationY(-time);
-	XMMATRIX orbitM = XMMatrixRotationY(-time * 1.5f);
+	XMMATRIX spinM = XMMatrixRotationX(-timer.Delta());
+	XMMATRIX dirSpin = XMMatrixRotationY(-timer.Delta());
+	XMMATRIX orbitM = XMMatrixRotationY(-time * 5);
 	XMMATRIX translateM = XMMatrixTranslation(-1.5f, 3.0f, 0.0f);
 
 	XMMATRIX spotM = translateM * orbitM;
 
 	//XMVECTOR spotPos = XMLoadFloat4(&psData.spot[0].lightPos);
-
 	XMStoreFloat4(&psData.spot[0].lightPos, spotM.r[3]);
 
 	XMVECTOR spotDir = XMLoadFloat4(&(psData.spot[0].lightDirection));
-
-	XMVector3Transform(spotDir, spinM);
-
-	//XMVector3Normalize(spotDir);
-
+	spotDir = XMVector3Transform(spotDir, spinM);
 	XMStoreFloat4(&psData.spot[0].lightDirection, spotDir);
 
-	//psData.spot[0].lightDirection.w = 1;
+	XMVECTOR dirDir = XMLoadFloat4(&(psData.directional[0].lightDirection));
+	dirDir = XMVector3Transform(dirDir, dirSpin);
+	XMStoreFloat4(&psData.directional[0].lightDirection, dirDir);
 
 	// NEXT POINT LIGHT
 	// starting Y = 2, max = 4
