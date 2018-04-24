@@ -187,6 +187,8 @@ class DEMO_APP
 
 	PS_BUFFER_DATA psData;
 
+	float pLightMove = 1.0f;
+
 	XMFLOAT4 lightPosition;
 
 	bool LoadPyramid();
@@ -363,7 +365,8 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	sd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 	sd.Windowed = true;
 	sd.OutputWindow = window;
-	sd.SampleDesc.Count = 1;
+	sd.SampleDesc.Count = 2; //1
+	sd.SampleDesc.Quality = D3D11_STANDARD_MULTISAMPLE_PATTERN; //0 for no MSAA
 
 	// TODO: PART 1 STEP 3b
 	D3D11CreateDeviceAndSwapChain(
@@ -408,14 +411,14 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	depthDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
 	depthDesc.CPUAccessFlags = NULL;
 	depthDesc.MiscFlags = NULL;
-	depthDesc.SampleDesc.Count = 1;
-	depthDesc.SampleDesc.Quality = 0;
+	depthDesc.SampleDesc.Count = 2; //1
+	depthDesc.SampleDesc.Quality = D3D11_STANDARD_MULTISAMPLE_PATTERN; //0;
 	device->CreateTexture2D(&depthDesc, NULL, &depthStencil);
 
 	D3D11_DEPTH_STENCIL_VIEW_DESC viewDesc;
 	ZeroMemory(&viewDesc, sizeof(viewDesc));
 	viewDesc.Format = depthDesc.Format;
-	viewDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	viewDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2DMS;
 	viewDesc.Texture2D.MipSlice = 0;
 	device->CreateDepthStencilView(depthStencil, &viewDesc, &depthStencilView);
 
@@ -436,13 +439,13 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	// LOAD MESHES AND THEIR BUFFERS
 
-	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity();
+	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(4.0f, 0.0f, 0.0f);;
 	LoadMeshFromHeader(Barrel_data, Barrel_indicies, ARRAYSIZE(Barrel_data), ARRAYSIZE(Barrel_indicies));
-	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(-1.5f, 2.0f, 0.0f);
+	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(3.0f, 2.0f, 0.0f);
 	LoadMeshFromHeader(Barrel_data, Barrel_indicies, ARRAYSIZE(Barrel_data), ARRAYSIZE(Barrel_indicies));
-	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(1.5f, 2.0f, 0.0f);
+	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(5.0f, 2.0f, 0.0f);
 	LoadMeshFromHeader(Barrel_data, Barrel_indicies, ARRAYSIZE(Barrel_data), ARRAYSIZE(Barrel_indicies));
-	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(0.0f, 4.0f, 0.0f);
+	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(4.0f, 4.0f, 0.0f);
 	LoadMeshFromHeader(Barrel_data, Barrel_indicies, ARRAYSIZE(Barrel_data), ARRAYSIZE(Barrel_indicies));
 	worldMatrices[currentIndex] = XMMatrixScaling(15.0f, 2.0f, 15.0f) * XMMatrixIdentity() * 	XMMatrixTranslation(0.0f, 9.0f, 0.0f);
 	LoadMeshFromHeader(test_pyramid_data, test_pyramid_indicies, ARRAYSIZE(test_pyramid_data), ARRAYSIZE(test_pyramid_indicies));
@@ -453,17 +456,6 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	SIMPLE_VERTEX cube[] =
 	{
-		/*
-		{ XMFLOAT3(-0.5f, 0.5f,-0.5f), XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f) },
-		{ XMFLOAT3(0.5f, 0.5f,-0.5f), XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f) },
-		{ XMFLOAT3(0.5f,0.5f,0.5f), XMFLOAT4(0.0f, 1.0f, 1.0f, 1.0f) },
-		{ XMFLOAT3(-0.5f,0.5f,0.5f), XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f) },
-
-		{ XMFLOAT3(-0.5f, -0.5f, -0.5f), XMFLOAT4(1.0f, 0.0f, 1.0f, 1.0f) },
-		{ XMFLOAT3(0.5f, -0.5f, -0.5f), XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f) },
-		{ XMFLOAT3(0.5f,-0.5f, 0.5f), XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f) },
-		{ XMFLOAT3(-0.5f,-0.5f, 0.5f), XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f) },
-		*/
 		{ XMFLOAT3(-0.5f, 0.5f,-0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
 		{ XMFLOAT3(0.5f, 0.5f,-0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
 		{ XMFLOAT3(0.5f,0.5f,0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
@@ -497,14 +489,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	};
 	short cubeInd[] =
 	{
-		/*
-		3,1,0, 2,1,3,
-		0,5,4, 1,5,0,
-		3,4,7, 0,4,3,
-		1,6,5, 2,6,1,
-		2,7,6, 3,7,2,
-		6,4,5, 7,4,6,
-		*/
+
 		3,1,0, 2,1,3,
 		6,4,5, 7,4,6,
 		11,9,8, 10,9,11,
@@ -605,18 +590,18 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	// for now, just hard code the lights
 	psData.directional[0].lightDirection = XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f);
-	psData.directional[0].lightColor = XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f);
+	psData.directional[0].lightColor = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 
-	psData.point[0].lightColor = XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f);
-	psData.point[0].lightPos = XMFLOAT4(0.0f, 2.0f, 0.0f, 1.0f);
+	psData.point[0].lightColor = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	psData.point[0].lightPos = XMFLOAT4(3.75f, 2.0f, 0.0f, 1.0f);
 	psData.point[0].lightRad = 5.0f;
 
 	psData.spot[0].lightDirection = XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f);
-	psData.spot[0].lightColor = XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f);
-	psData.spot[0].lightPos = XMFLOAT4(0.0f, 3.0f, 0.0f, 1.0f);
+	psData.spot[0].lightColor = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	psData.spot[0].lightPos = XMFLOAT4(-1.5f, 3.0f, 0.0f, 1.0f);
 	psData.spot[0].lightRad = 100.0f;
-	psData.spot[0].outerConeRatio = 0.99f;
-	psData.spot[0].innerConeRatio = 0.992f;
+	psData.spot[0].outerConeRatio = 0.96f;
+	psData.spot[0].innerConeRatio = 0.98f;
 	
 }
 
@@ -647,6 +632,47 @@ bool DEMO_APP::Run()
 	context->PSSetShader(ps, 0, 0);
 	context->PSSetShaderResources(0, 1, &textureRV);
 	context->PSSetSamplers(0, 1, &textureSampler);
+
+	// update lights to be dynamic
+	double time = timer.TotalTime();
+
+	// first spotlight
+	XMMATRIX spinM = XMMatrixRotationY(-time);
+	XMMATRIX orbitM = XMMatrixRotationY(-time * 1.5f);
+	XMMATRIX translateM = XMMatrixTranslation(-1.5f, 3.0f, 0.0f);
+
+	XMMATRIX spotM = translateM * orbitM;
+
+	//XMVECTOR spotPos = XMLoadFloat4(&psData.spot[0].lightPos);
+
+	XMStoreFloat4(&psData.spot[0].lightPos, spotM.r[3]);
+
+	XMVECTOR spotDir = XMLoadFloat4(&(psData.spot[0].lightDirection));
+
+	XMVector3Transform(spotDir, spinM);
+
+	//XMVector3Normalize(spotDir);
+
+	XMStoreFloat4(&psData.spot[0].lightDirection, spotDir);
+
+	//psData.spot[0].lightDirection.w = 1;
+
+	// NEXT POINT LIGHT
+	// starting Y = 2, max = 4
+
+	if (psData.point[0].lightPos.y > 4.0f)
+	{
+		pLightMove = -1;
+	}
+	if (psData.point[0].lightPos.y < 2.0f)
+	{
+		pLightMove = 1;
+	}
+	psData.point[0].lightPos.y += timer.Delta() * pLightMove * 0.5f;
+	
+	
+
+
 	/*
 	// UPDATE ANY MATRIX DATA
 	double time = timer.TotalTime();
@@ -812,7 +838,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 bool DEMO_APP::MoveCamera()
 {
 	// speed modifier
-	float speed = 0.005f;
+	float speed = 3.0f;
 
 	unsigned int inputs[] = { 'W', 'A', 'S', 'D', 'Q', 'E', VK_UP, VK_DOWN, VK_RBUTTON};
 	float activeKeys[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
@@ -838,9 +864,10 @@ bool DEMO_APP::MoveCamera()
 			activeKeys[i] = 1;
 		}
 	}
+	float time = timer.Delta();
 
 	// change FOV for zooming
-	currentFOV += (30 * speed * ((activeKeys[6] * keyEffect[6]) + (activeKeys[7] * keyEffect[7])));
+	currentFOV += (time * 10 * speed * ((activeKeys[6] * keyEffect[6]) + (activeKeys[7] * keyEffect[7])));
 	if (currentFOV < minFOV)
 		currentFOV = minFOV;
 	if (currentFOV > maxFOV)
@@ -865,9 +892,9 @@ bool DEMO_APP::MoveCamera()
 	// start camera movement
 	XMFLOAT3 translation
 	(
-		speed * ((activeKeys[1] * keyEffect[1]) + (activeKeys[3] * keyEffect[3])),
-		speed * ((activeKeys[5] * keyEffect[5]) + (activeKeys[4] * keyEffect[4])),
-		speed * ((activeKeys[0] * keyEffect[0]) + (activeKeys[2] * keyEffect[2]))
+		speed * time * ((activeKeys[1] * keyEffect[1]) + (activeKeys[3] * keyEffect[3])),
+		speed * time * ((activeKeys[5] * keyEffect[5]) + (activeKeys[4] * keyEffect[4])),
+		speed * time * ((activeKeys[0] * keyEffect[0]) + (activeKeys[2] * keyEffect[2]))
 	);
 
 
@@ -920,7 +947,7 @@ bool DEMO_APP::ResizeWindow()
 	depthStencil->Release();
 	depthStencilView->Release();
 
-	//create new zbuffer
+	// create new zbuffer
 	D3D11_TEXTURE2D_DESC depthDesc;
 	ZeroMemory(&depthDesc, sizeof(depthDesc));
 	depthDesc.Width = viewport.Width;
@@ -932,8 +959,8 @@ bool DEMO_APP::ResizeWindow()
 	depthDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
 	depthDesc.CPUAccessFlags = NULL;
 	depthDesc.MiscFlags = NULL;
-	depthDesc.SampleDesc.Count = 1;
-	depthDesc.SampleDesc.Quality = 0;
+	depthDesc.SampleDesc.Count = 2;
+	depthDesc.SampleDesc.Quality = D3D11_STANDARD_MULTISAMPLE_PATTERN;
 	device->CreateTexture2D(&depthDesc, NULL, &depthStencil);
 
 	device->CreateDepthStencilView(depthStencil, 0, &depthStencilView);
