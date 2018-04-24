@@ -104,6 +104,8 @@ class DEMO_APP
 	unsigned int				numVertices[MESH_COUNT]; // store number of verts/indices for easy draw calls :)
 	unsigned int				numIndices[MESH_COUNT];
 
+	ID3D11ShaderResourceView	*textureRVs[MESH_COUNT];
+	ID3D11SamplerState			*textureSamplers[MESH_COUNT];
 
 	XMMATRIX					worldMatrices[MESH_COUNT]; // store matrices for each object.  
 	
@@ -194,8 +196,8 @@ class DEMO_APP
 	XMFLOAT4 lightPosition;
 
 	bool LoadPyramid();
-	bool LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int indices[], unsigned int numVerts, unsigned int numInd);
-	bool LoadOBJ(const char *filePath);
+	bool LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int indices[], unsigned int numVerts, unsigned int numInd, const wchar_t *path);
+	bool LoadOBJ(const char *filePath, const wchar_t *texturePath);
 
 public:
 	struct SIMPLE_VERTEX
@@ -222,7 +224,7 @@ public:
 /////////////////////////////////////////////////////////////////////
 // Loads in OBJ, and adds it to the vertex and index buffer arrays //
 /////////////////////////////////////////////////////////////////////
-bool DEMO_APP::LoadOBJ(const char *filePath)
+bool DEMO_APP::LoadOBJ(const char *filePath, const wchar_t *texturePath)
 {
 	// abort if file not found
 	FILE *file = fopen(filePath, "r");
@@ -398,12 +400,27 @@ bool DEMO_APP::LoadOBJ(const char *filePath)
 	numVertices[currentIndex] = normals.size();
 	numIndices[currentIndex] = vertIndices.size();
 
+
+	// TODO: load texture?
+	CreateDDSTextureFromFile(device, texturePath, nullptr, &textureRVs[currentIndex]);
+	// will need to add char arg to function
+	D3D11_SAMPLER_DESC samplerDesc;
+	ZeroMemory(&samplerDesc, sizeof(samplerDesc));
+	samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+	samplerDesc.MinLOD = 0;
+	samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+	device->CreateSamplerState(&samplerDesc, &textureSamplers[currentIndex]);
+
 	currentIndex += 1;
 	return true;
 }
 
 // currently this requires atleast one header file to be loaded in that defines the OBJ_VERT class...
-bool DEMO_APP::LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int indices[], unsigned int numVerts, unsigned int numInd)
+bool DEMO_APP::LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int indices[], unsigned int numVerts, unsigned int numInd, const wchar_t *path)
 {
 	SIMPLE_VERTEX *meshVerts = new SIMPLE_VERTEX[numVerts];
 	short* meshIndices = new short[numInd];
@@ -447,7 +464,18 @@ bool DEMO_APP::LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int ind
 	numIndices[currentIndex] = numInd;
 
 	// TODO: load texture?
+	CreateDDSTextureFromFile(device, path, nullptr, &textureRVs[currentIndex]);
 	// will need to add char arg to function
+	D3D11_SAMPLER_DESC samplerDesc;
+	ZeroMemory(&samplerDesc, sizeof(samplerDesc));
+	samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+	samplerDesc.MinLOD = 0;
+	samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+	device->CreateSamplerState(&samplerDesc, &textureSamplers[currentIndex]);
 
 
 	// update currentIndex before exiting
@@ -550,7 +578,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	sd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 	sd.Windowed = true;
 	sd.OutputWindow = window;
-	sd.SampleDesc.Count = 2; //1
+	sd.SampleDesc.Count = 4; //1
 	sd.SampleDesc.Quality = D3D11_STANDARD_MULTISAMPLE_PATTERN; //0 for no MSAA
 
 	// TODO: PART 1 STEP 3b
@@ -596,7 +624,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	depthDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
 	depthDesc.CPUAccessFlags = NULL;
 	depthDesc.MiscFlags = NULL;
-	depthDesc.SampleDesc.Count = 2; //1
+	depthDesc.SampleDesc.Count = 4; //1
 	depthDesc.SampleDesc.Quality = D3D11_STANDARD_MULTISAMPLE_PATTERN; //0;
 	device->CreateTexture2D(&depthDesc, NULL, &depthStencil);
 
@@ -624,21 +652,21 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	// LOAD MESHES AND THEIR BUFFERS
 
-	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(4.0f, 0.0f, 0.0f);;
-	LoadMeshFromHeader(Barrel_data, Barrel_indicies, ARRAYSIZE(Barrel_data), ARRAYSIZE(Barrel_indicies));
+	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(4.0f, 0.0f, 0.0f);
+	LoadMeshFromHeader(Barrel_data, Barrel_indicies, ARRAYSIZE(Barrel_data), ARRAYSIZE(Barrel_indicies), L"barrel.dds");
 	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(3.0f, 2.0f, 0.0f);
-	LoadMeshFromHeader(Barrel_data, Barrel_indicies, ARRAYSIZE(Barrel_data), ARRAYSIZE(Barrel_indicies));
+	LoadMeshFromHeader(Barrel_data, Barrel_indicies, ARRAYSIZE(Barrel_data), ARRAYSIZE(Barrel_indicies), L"barrel.dds");
 	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(5.0f, 2.0f, 0.0f);
-	LoadMeshFromHeader(Barrel_data, Barrel_indicies, ARRAYSIZE(Barrel_data), ARRAYSIZE(Barrel_indicies));
+	LoadMeshFromHeader(Barrel_data, Barrel_indicies, ARRAYSIZE(Barrel_data), ARRAYSIZE(Barrel_indicies), L"barrel.dds");
 	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(4.0f, 4.0f, 0.0f);
-	LoadMeshFromHeader(Barrel_data, Barrel_indicies, ARRAYSIZE(Barrel_data), ARRAYSIZE(Barrel_indicies));
+	LoadMeshFromHeader(Barrel_data, Barrel_indicies, ARRAYSIZE(Barrel_data), ARRAYSIZE(Barrel_indicies), L"barrel.dds");
 	worldMatrices[currentIndex] = XMMatrixScaling(15.0f, 2.0f, 15.0f) * XMMatrixIdentity() * 	XMMatrixTranslation(0.0f, 9.0f, 0.0f);
-	LoadMeshFromHeader(test_pyramid_data, test_pyramid_indicies, ARRAYSIZE(test_pyramid_data), ARRAYSIZE(test_pyramid_indicies));
+	LoadMeshFromHeader(test_pyramid_data, test_pyramid_indicies, ARRAYSIZE(test_pyramid_data), ARRAYSIZE(test_pyramid_indicies), L"barrel.dds");
 
 
 	// testing OBJ loader
-	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * XMMatrixTranslation(-5.0f, 0.0f, 0.0f);
-	bool result = LoadOBJ("Barrel.obj");
+	worldMatrices[currentIndex] = XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixIdentity() * XMMatrixTranslation(-5.0f, 0.0f, 0.0f);
+	bool result = LoadOBJ("penguin.obj", L"peng.dds");
 
 	// test over
 
@@ -823,8 +851,9 @@ bool DEMO_APP::Run()
 	context->PSSetConstantBuffers(0, 1, &pixelConstantBuffer);
 	context->VSSetShader(vs, 0, 0);
 	context->PSSetShader(ps, 0, 0);
-	context->PSSetShaderResources(0, 1, &textureRV);
-	context->PSSetSamplers(0, 1, &textureSampler);
+
+	//context->PSSetShaderResources(0, 1, &textureRV);
+	//context->PSSetSamplers(0, 1, &textureSampler);
 
 	// update lights to be dynamic
 	double time = timer.TotalTime();
@@ -916,6 +945,8 @@ bool DEMO_APP::Run()
 	{
 		context->IASetVertexBuffers(0, 1, &vertexBuffers[i], &strides, &offsets);
 		context->IASetIndexBuffer(indexBuffers[i], DXGI_FORMAT_R16_UINT, 0);
+		context->PSSetShaderResources(0, 1, &textureRVs[i]);
+		context->PSSetSamplers(0, 1, &textureSamplers[i]);
 
 		// update vertex shader with new info
 
@@ -968,6 +999,8 @@ bool DEMO_APP::ShutDown()
 	{
 		vertexBuffers[i]->Release();
 		indexBuffers[i]->Release();
+		textureRVs[i]->Release();
+		textureSamplers[i]->Release();
 	}
 
 	pixelConstantBuffer->Release();
