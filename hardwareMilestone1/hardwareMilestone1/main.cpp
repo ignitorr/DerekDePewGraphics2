@@ -196,9 +196,11 @@ class DEMO_APP
 
 	XMFLOAT4 lightPosition;
 
+	bool LoadTexture(const wchar_t *texturePath);
 	bool LoadPyramid();
-	bool LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int indices[], unsigned int numVerts, unsigned int numInd, const wchar_t *path);
+	bool LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int indices[], unsigned int numVerts, unsigned int numInd, const wchar_t *texturePath);
 	bool LoadOBJ(const char *filePath, const wchar_t *texturePath);
+	bool CreateIndexedCube(float scale, const wchar_t *texturePath);
 
 public:
 	struct SIMPLE_VERTEX
@@ -222,9 +224,31 @@ public:
 
 };
 
-/////////////////////////////////////////////////////////////////////
-// Loads in OBJ, and adds it to the vertex and index buffer arrays //
-/////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////
+// Partner function for model creation.    //
+// All Load or Create functions call this. //
+/////////////////////////////////////////////
+bool DEMO_APP::LoadTexture(const wchar_t *texturePath)
+{
+	CreateDDSTextureFromFile(device, texturePath, nullptr, &textureRVs[currentIndex]);
+	// will need to add char arg to function
+	D3D11_SAMPLER_DESC samplerDesc;
+	ZeroMemory(&samplerDesc, sizeof(samplerDesc));
+	samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+	samplerDesc.MinLOD = 0;
+	samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+	device->CreateSamplerState(&samplerDesc, &textureSamplers[currentIndex]);
+
+	return true;
+}
+
+//////////////////////////////////////////////////////////////////////
+// Loads in OBJ, and adds it to the vertex and index buffer arrays. //
+//////////////////////////////////////////////////////////////////////
 bool DEMO_APP::LoadOBJ(const char *filePath, const wchar_t *texturePath)
 {
 	// abort if file not found
@@ -259,6 +283,7 @@ bool DEMO_APP::LoadOBJ(const char *filePath, const wchar_t *texturePath)
 		{
 			XMFLOAT2 newUV;
 			fscanf(file, "%f %f\n", &newUV.x, &newUV.y);
+			newUV.y *= -1.0f;
 			uvs.push_back(newUV);
 		}
 		// normals
@@ -411,27 +436,15 @@ bool DEMO_APP::LoadOBJ(const char *filePath, const wchar_t *texturePath)
 	numVertices[currentIndex] = normals.size();
 	numIndices[currentIndex] = vertIndices.size();
 
-
-	// TODO: load texture?
-	CreateDDSTextureFromFile(device, texturePath, nullptr, &textureRVs[currentIndex]);
-	// will need to add char arg to function
-	D3D11_SAMPLER_DESC samplerDesc;
-	ZeroMemory(&samplerDesc, sizeof(samplerDesc));
-	samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-	samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-	samplerDesc.MinLOD = 0;
-	samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
-	device->CreateSamplerState(&samplerDesc, &textureSamplers[currentIndex]);
+	// load the model's texture
+	LoadTexture(texturePath);
 
 	currentIndex += 1;
 	return true;
 }
 
 // currently this requires atleast one header file to be loaded in that defines the OBJ_VERT class...
-bool DEMO_APP::LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int indices[], unsigned int numVerts, unsigned int numInd, const wchar_t *path)
+bool DEMO_APP::LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int indices[], unsigned int numVerts, unsigned int numInd, const wchar_t *texturePath)
 {
 	SIMPLE_VERTEX *meshVerts = new SIMPLE_VERTEX[numVerts];
 	short* meshIndices = new short[numInd];
@@ -474,20 +487,8 @@ bool DEMO_APP::LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int ind
 	numVertices[currentIndex] = numVerts;
 	numIndices[currentIndex] = numInd;
 
-	// TODO: load texture?
-	CreateDDSTextureFromFile(device, path, nullptr, &textureRVs[currentIndex]);
-	// will need to add char arg to function
-	D3D11_SAMPLER_DESC samplerDesc;
-	ZeroMemory(&samplerDesc, sizeof(samplerDesc));
-	samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-	samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-	samplerDesc.MinLOD = 0;
-	samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
-	device->CreateSamplerState(&samplerDesc, &textureSamplers[currentIndex]);
-
+	// load the model's texture
+	LoadTexture(texturePath);
 
 	// update currentIndex before exiting
 	currentIndex += 1;
@@ -543,6 +544,90 @@ bool DEMO_APP::LoadPyramid()
 	headerBufferData.pSysMem = headerInd;
 
 	device->CreateBuffer(&headerBD, &headerBufferData, &pIBuffer);
+
+	return true;
+}
+
+///////////////////////////////////////////////////
+// Creates an indexed cube in the buffer arrays. //
+///////////////////////////////////////////////////
+bool DEMO_APP::CreateIndexedCube(float scale, const wchar_t *texturePath)
+{
+	SIMPLE_VERTEX cube[] =
+	{
+		{ XMFLOAT3(-0.5f, 0.5f,-0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
+		{ XMFLOAT3(0.5f, 0.5f,-0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
+		{ XMFLOAT3(0.5f,0.5f,0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
+		{ XMFLOAT3(-0.5f,0.5f,0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
+
+		{ XMFLOAT3(-0.5f, -0.5f, -0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
+		{ XMFLOAT3(0.5f, -0.5f, -0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
+		{ XMFLOAT3(0.5f,-0.5f, 0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
+		{ XMFLOAT3(-0.5f,-0.5f, 0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
+
+		{ XMFLOAT3(-0.5f,-0.5f, 0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
+		{ XMFLOAT3(-0.5f,-0.5f, -0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
+		{ XMFLOAT3(-0.5f,0.5f, -0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
+		{ XMFLOAT3(-0.5f,0.5f, 0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
+
+		{ XMFLOAT3(0.5f, -0.5f, 0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
+		{ XMFLOAT3(0.5f, -0.5f, -0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
+		{ XMFLOAT3(0.5f, 0.5f, -0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
+		{ XMFLOAT3(0.5f, 0.5f, 0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
+
+		{ XMFLOAT3(-0.5f, -0.5f, -0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
+		{ XMFLOAT3(0.5f, -0.5f, -0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
+		{ XMFLOAT3(0.5f, 0.5f, -0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
+		{ XMFLOAT3(-0.5f, 0.5f, -0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
+
+		{ XMFLOAT3(-0.5f, -0.5f, 0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
+		{ XMFLOAT3(0.5f, -0.5f, 0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
+		{ XMFLOAT3(0.5f, 0.5f, 0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
+		{ XMFLOAT3(-0.5f, 0.5f, 0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
+
+	};
+	short cubeInd[] =
+	{
+
+		3,1,0, 2,1,3,
+		6,4,5, 7,4,6,
+		11,9,8, 10,9,11,
+		14,12,13, 15,12,14,
+		19,17,16, 18,17,19,
+		22,20,21, 23,20,22
+
+	};
+
+	// set vertex buffer
+	D3D11_BUFFER_DESC cubeBD;
+	ZeroMemory(&cubeBD, sizeof(cubeBD));
+	cubeBD.Usage = D3D11_USAGE_IMMUTABLE;
+	cubeBD.ByteWidth = sizeof(SIMPLE_VERTEX) * ARRAYSIZE(cube);
+	cubeBD.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	cubeBD.CPUAccessFlags = NULL;
+
+	D3D11_SUBRESOURCE_DATA cubeBufferData;
+	ZeroMemory(&cubeBufferData, sizeof(cubeBufferData));
+	cubeBufferData.pSysMem = cube;
+	device->CreateBuffer(&cubeBD, &cubeBufferData, &vertexBuffers[currentIndex]);
+
+	// create index buffer
+	cubeBD.Usage = D3D11_USAGE_IMMUTABLE;
+	cubeBD.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	cubeBD.CPUAccessFlags = NULL;
+	cubeBD.ByteWidth = sizeof(short) * 36;
+
+	cubeBufferData.pSysMem = cubeInd;
+
+	device->CreateBuffer(&cubeBD, &cubeBufferData, &indexBuffers[currentIndex]);
+
+	// load the model's texture
+	LoadTexture(texturePath);
+
+	worldMatrices[currentIndex] = XMMatrixScaling(scale, scale, scale) * XMMatrixIdentity();
+	
+	// update currentIndex before exiting
+	currentIndex += 1;
 
 	return true;
 }
@@ -677,7 +762,6 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 
 	// testing OBJ loader
-
 	worldMatrices[currentIndex] = XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixIdentity() * XMMatrixTranslation(-5.0f, 0.0f, 0.0f);
 	bool result = LoadOBJ("penguin.obj", L"peng.dds");
 	worldMatrices[currentIndex] = XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixIdentity() * XMMatrixTranslation(-7.0f, 0.0f, 0.0f);
@@ -685,11 +769,13 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	// test over
 
-	// LOAD PYRAMID 
-	//LoadPyramid(); //originally loaded a pyramid, now a barrel
+	// testing cube
+	//CreateIndexedCube(0.5f, L"barrel.dds");
+	//D3D11 WARNING: ID3D11DeviceContext::DrawIndexed: Index buffer has not enough space! [ EXECUTION WARNING #359: DEVICE_DRAW_INDEX_BUFFER_TOO_SMALL]
+	// fix this :)
 
 	// DEFINE CUBE DATA
-
+	/*
 	SIMPLE_VERTEX cube[] =
 	{
 		{ XMFLOAT3(-0.5f, 0.5f,-0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
@@ -759,7 +845,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	//context->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R16_UINT, 0);
 
 	// create constant buffer
-	/*
+	
 	cubeBD.Usage = D3D11_USAGE_DYNAMIC;
 	cubeBD.ByteWidth = sizeof(MATRIX_DATA);
 	cubeBD.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
@@ -767,6 +853,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	device->CreateBuffer(&cubeBD, NULL, &constantBuffer);
 	*/
+	
 
 	// create matrices
 	worldM = XMMatrixIdentity();
@@ -779,7 +866,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	XMVECTOR Up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 	
 	/*
-	viewM = XMMatrixRotationX(-45.0f);
+	viewM = XMMatrixRotationX(45.0f);
 	viewM = XMMatrixMultiply(XMMatrixTranslation(0.0f, 0.0f, -3.0f), viewM);
 	viewM = XMMatrixInverse(0, viewM);
 	*/
@@ -998,8 +1085,8 @@ bool DEMO_APP::ShutDown()
 	depthStencil->Release();
 	depthStencilView->Release();
 
-	vertexBuffer->Release();
-	indexBuffer->Release();
+	//vertexBuffer->Release();
+	//indexBuffer->Release();
 	//constantBuffer->Release();
 
 	textureRV->Release();
