@@ -19,6 +19,7 @@
 #include "DDSTextureLoader.h"
 #include "Barrel.h"
 #include "test pyramid.h"
+#include "penguin.h"
 
 #include <vector>
 
@@ -323,6 +324,9 @@ bool DEMO_APP::LoadOBJ(const char *filePath, const wchar_t *texturePath)
 					if (tempVertex.normal.x == meshVerts[v].normal.x && tempVertex.normal.y == meshVerts[v].normal.y && tempVertex.normal.z == meshVerts[v].normal.z)
 					{
 						isNewVert = false;
+
+						// update index list
+						meshIndices[i] = v;
 					}
 				}
 			}
@@ -332,11 +336,16 @@ bool DEMO_APP::LoadOBJ(const char *filePath, const wchar_t *texturePath)
 			meshVerts[currentVertexIndex].xyz = newVert;
 			meshVerts[currentVertexIndex].uv = newUV;
 			meshVerts[currentVertexIndex].normal = newNorm;
+
+			// update index list
+			meshIndices[i] = currentVertexIndex;
+
 			// update current index
 			currentVertexIndex++;
 		}
 	}
-
+	/*
+	
 	for (int i = 0; i < vertIndices.size(); i++)
 	{
 		//meshIndices[i] = normIndices[i] - 1;
@@ -364,6 +373,7 @@ bool DEMO_APP::LoadOBJ(const char *filePath, const wchar_t *texturePath)
 			}
 		}
 		
+		//meshIndices[i] = normIndices[i] - 1;
 
 		//meshIndices[i] = vertIndices[i] - 1;
 		// create vertex using the numbers from each array
@@ -372,6 +382,7 @@ bool DEMO_APP::LoadOBJ(const char *filePath, const wchar_t *texturePath)
 		// store that number
 	}
 	
+	*/
 	
 
 	// create vertex buffer
@@ -664,9 +675,13 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	LoadMeshFromHeader(test_pyramid_data, test_pyramid_indicies, ARRAYSIZE(test_pyramid_data), ARRAYSIZE(test_pyramid_indicies), L"barrel.dds");
 
 
+
 	// testing OBJ loader
+
 	worldMatrices[currentIndex] = XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixIdentity() * XMMatrixTranslation(-5.0f, 0.0f, 0.0f);
 	bool result = LoadOBJ("penguin.obj", L"peng.dds");
+	worldMatrices[currentIndex] = XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixIdentity() * XMMatrixTranslation(-7.0f, 0.0f, 0.0f);
+	LoadMeshFromHeader(penguin_data, penguin_indicies, ARRAYSIZE(penguin_data), ARRAYSIZE(penguin_indicies), L"peng.dds");
 
 	// test over
 
@@ -1183,7 +1198,7 @@ bool DEMO_APP::ResizeWindow()
 	depthDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
 	depthDesc.CPUAccessFlags = NULL;
 	depthDesc.MiscFlags = NULL;
-	depthDesc.SampleDesc.Count = 2;
+	depthDesc.SampleDesc.Count = 4;
 	depthDesc.SampleDesc.Quality = D3D11_STANDARD_MULTISAMPLE_PATTERN;
 	device->CreateTexture2D(&depthDesc, NULL, &depthStencil);
 

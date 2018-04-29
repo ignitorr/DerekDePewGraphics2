@@ -167,8 +167,11 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Barrel.h" />
+    <ClInclude Include="basiccube.h" />
     <ClInclude Include="DDSTextureLoader.h" />
+    <ClInclude Include="penguin.h" />
     <ClInclude Include="test pyramid.h" />
+    <ClInclude Include="UVtest.h" />
     <ClInclude Include="XTime.h" />
   </ItemGroup>
   <ItemGroup>

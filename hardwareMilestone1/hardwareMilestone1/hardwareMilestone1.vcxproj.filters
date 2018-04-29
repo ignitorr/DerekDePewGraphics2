@@ -38,6 +38,15 @@
     <ClInclude Include="Barrel.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="UVtest.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="penguin.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="basiccube.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Trivial_VS.hlsl" />
