@@ -197,7 +197,6 @@ class DEMO_APP
 	XMFLOAT4 lightPosition;
 
 	bool LoadTexture(const wchar_t *texturePath);
-	bool LoadPyramid();
 	bool LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int indices[], unsigned int numVerts, unsigned int numInd, const wchar_t *texturePath);
 	bool LoadOBJ(const char *filePath, const wchar_t *texturePath);
 	bool CreateIndexedCube(float scale, const wchar_t *texturePath);
@@ -496,57 +495,6 @@ bool DEMO_APP::LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int ind
 	return true;
 }
 
-//TODO: make this work with ANY passed vert array and index array
-// bool DEMO_APP::LoadFromHeader(vert_list, indices)
-bool DEMO_APP::LoadPyramid()
-{
-	SIMPLE_VERTEX pyramid[ARRAYSIZE(Barrel_data)];
-	for (int i = 0; i < ARRAYSIZE(Barrel_data); i++)
-	{
-		pyramid[i].xyz = XMFLOAT3(Barrel_data[i].pos[0], Barrel_data[i].pos[1], Barrel_data[i].pos[2]);
-		pyramid[i].uv = XMFLOAT2(Barrel_data[i].uvw[0], Barrel_data[i].uvw[1]);
-		pyramid[i].normal = XMFLOAT3(Barrel_data[i].nrm[0], Barrel_data[i].nrm[1], Barrel_data[i].nrm[2]);
-		
-	}
-	/*
-	for (int i = 0; i < ARRAYSIZE(test_pyramid_data); i++)
-	{
-		pyramid[i].xyz = XMFLOAT3(test_pyramid_data[i].pos[0], test_pyramid_data[i].pos[1], test_pyramid_data[i].pos[2]);
-		pyramid[i].uv = XMFLOAT2(test_pyramid_data[i].uvw[0], test_pyramid_data[i].uvw[1]);
-		pyramid[i].normal = XMFLOAT3(test_pyramid_data[i].nrm[0], test_pyramid_data[i].nrm[1], test_pyramid_data[i].nrm[2]);
-	}
-	*/
-	short headerInd[ARRAYSIZE(Barrel_indicies)];
-	for (int i = 0; i < ARRAYSIZE(Barrel_indicies); i++)
-	{
-		headerInd[i] = Barrel_indicies[i];
-	}
-
-	D3D11_BUFFER_DESC headerBD;
-	ZeroMemory(&headerBD, sizeof(headerBD));
-	headerBD.Usage = D3D11_USAGE_IMMUTABLE;
-	headerBD.ByteWidth = sizeof(SIMPLE_VERTEX) * ARRAYSIZE(pyramid);
-	headerBD.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	headerBD.CPUAccessFlags = NULL;
-
-	D3D11_SUBRESOURCE_DATA headerBufferData;
-	ZeroMemory(&headerBufferData, sizeof(headerBufferData));
-	headerBufferData.pSysMem = pyramid;
-	device->CreateBuffer(&headerBD, &headerBufferData, &pVBuffer);
-
-
-	// create index buffer
-	headerBD.Usage = D3D11_USAGE_IMMUTABLE;
-	headerBD.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	headerBD.CPUAccessFlags = NULL;
-	headerBD.ByteWidth = sizeof(short) * ARRAYSIZE(headerInd);
-
-	headerBufferData.pSysMem = headerInd;
-
-	device->CreateBuffer(&headerBD, &headerBufferData, &pIBuffer);
-
-	return true;
-}
 
 ///////////////////////////////////////////////////
 // Creates an indexed cube in the buffer arrays. //
@@ -602,7 +550,7 @@ bool DEMO_APP::CreateIndexedCube(float scale, const wchar_t *texturePath)
 	D3D11_BUFFER_DESC cubeBD;
 	ZeroMemory(&cubeBD, sizeof(cubeBD));
 	cubeBD.Usage = D3D11_USAGE_IMMUTABLE;
-	cubeBD.ByteWidth = sizeof(SIMPLE_VERTEX) * ARRAYSIZE(cube);
+	cubeBD.ByteWidth = sizeof(SIMPLE_VERTEX)* ARRAYSIZE(cube);
 	cubeBD.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	cubeBD.CPUAccessFlags = NULL;
 
@@ -615,15 +563,20 @@ bool DEMO_APP::CreateIndexedCube(float scale, const wchar_t *texturePath)
 	cubeBD.Usage = D3D11_USAGE_IMMUTABLE;
 	cubeBD.BindFlags = D3D11_BIND_INDEX_BUFFER;
 	cubeBD.CPUAccessFlags = NULL;
-	cubeBD.ByteWidth = sizeof(short) * 36;
+	cubeBD.ByteWidth = sizeof(short) * ARRAYSIZE(cubeInd);
 
 	cubeBufferData.pSysMem = cubeInd;
 
 	device->CreateBuffer(&cubeBD, &cubeBufferData, &indexBuffers[currentIndex]);
 
+	// update number arrays
+	numVertices[currentIndex] = ARRAYSIZE(cube);
+	numIndices[currentIndex] = ARRAYSIZE(cubeInd);
+
 	// load the model's texture
 	LoadTexture(texturePath);
 
+	// create worldMatrix
 	worldMatrices[currentIndex] = XMMatrixScaling(scale, scale, scale) * XMMatrixIdentity();
 	
 	// update currentIndex before exiting
@@ -770,90 +723,8 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	// test over
 
 	// testing cube
-	//CreateIndexedCube(0.5f, L"barrel.dds");
-	//D3D11 WARNING: ID3D11DeviceContext::DrawIndexed: Index buffer has not enough space! [ EXECUTION WARNING #359: DEVICE_DRAW_INDEX_BUFFER_TOO_SMALL]
-	// fix this :)
+	CreateIndexedCube(0.5f, L"barrel.dds");
 
-	// DEFINE CUBE DATA
-	/*
-	SIMPLE_VERTEX cube[] =
-	{
-		{ XMFLOAT3(-0.5f, 0.5f,-0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
-		{ XMFLOAT3(0.5f, 0.5f,-0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
-		{ XMFLOAT3(0.5f,0.5f,0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
-		{ XMFLOAT3(-0.5f,0.5f,0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
-
-		{ XMFLOAT3(-0.5f, -0.5f, -0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
-		{ XMFLOAT3(0.5f, -0.5f, -0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
-		{ XMFLOAT3(0.5f,-0.5f, 0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
-		{ XMFLOAT3(-0.5f,-0.5f, 0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
-
-		{ XMFLOAT3(-0.5f,-0.5f, 0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
-		{ XMFLOAT3(-0.5f,-0.5f, -0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
-		{ XMFLOAT3(-0.5f,0.5f, -0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
-		{ XMFLOAT3(-0.5f,0.5f, 0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
-
-		{ XMFLOAT3(0.5f, -0.5f, 0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
-		{ XMFLOAT3(0.5f, -0.5f, -0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
-		{ XMFLOAT3(0.5f, 0.5f, -0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
-		{ XMFLOAT3(0.5f, 0.5f, 0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
-
-		{ XMFLOAT3(-0.5f, -0.5f, -0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
-		{ XMFLOAT3(0.5f, -0.5f, -0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
-		{ XMFLOAT3(0.5f, 0.5f, -0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
-		{ XMFLOAT3(-0.5f, 0.5f, -0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
-
-		{ XMFLOAT3(-0.5f, -0.5f, 0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
-		{ XMFLOAT3(0.5f, -0.5f, 0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
-		{ XMFLOAT3(0.5f, 0.5f, 0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
-		{ XMFLOAT3(-0.5f, 0.5f, 0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
-
-	};
-	short cubeInd[] =
-	{
-
-		3,1,0, 2,1,3,
-		6,4,5, 7,4,6,
-		11,9,8, 10,9,11,
-		14,12,13, 15,12,14,
-		19,17,16, 18,17,19,
-		22,20,21, 23,20,22
-
-	};
-	// set vertex buffer
-	D3D11_BUFFER_DESC cubeBD;
-	ZeroMemory(&cubeBD, sizeof(cubeBD));
-	cubeBD.Usage = D3D11_USAGE_IMMUTABLE;
-	cubeBD.ByteWidth = sizeof(SIMPLE_VERTEX) * ARRAYSIZE(cube);
-	cubeBD.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	cubeBD.CPUAccessFlags = NULL;
-
-	D3D11_SUBRESOURCE_DATA cubeBufferData;
-	ZeroMemory(&cubeBufferData, sizeof(cubeBufferData));
-	cubeBufferData.pSysMem = cube;
-	device->CreateBuffer(&cubeBD, &cubeBufferData, &vertexBuffer);
-
-	// create index buffer
-	cubeBD.Usage = D3D11_USAGE_IMMUTABLE;
-	cubeBD.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	cubeBD.CPUAccessFlags = NULL;
-	cubeBD.ByteWidth = sizeof(short) * 36;
-
-	cubeBufferData.pSysMem = cubeInd;
-
-	device->CreateBuffer(&cubeBD, &cubeBufferData, &indexBuffer);
-	//context->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R16_UINT, 0);
-
-	// create constant buffer
-	
-	cubeBD.Usage = D3D11_USAGE_DYNAMIC;
-	cubeBD.ByteWidth = sizeof(MATRIX_DATA);
-	cubeBD.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	cubeBD.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-
-	device->CreateBuffer(&cubeBD, NULL, &constantBuffer);
-	*/
-	
 
 	// create matrices
 	worldM = XMMatrixIdentity();
