@@ -54,8 +54,6 @@ class DEMO_APP
 	WNDPROC							appWndProc;
 	HWND							window;
 
-
-
 	//*****************************************//
 	//************ GRAPHICS 2 CODE ************//
 	//*****************************************//
@@ -68,37 +66,9 @@ class DEMO_APP
 	ID3D11InputLayout			*inputLayout;
 	ID3D11VertexShader			*vs;
 	ID3D11PixelShader			*ps;
-
 	ID3D11Texture2D				*depthStencil;
 	ID3D11DepthStencilView		*depthStencilView;
 
-	//TEXTURING
-	ID3D11ShaderResourceView	*textureRV;
-	ID3D11SamplerState			*textureSampler;
-
-	ID3D11Buffer				*vertexBuffer;
-	ID3D11Buffer				*indexBuffer;
-	ID3D11Buffer				*constantBuffer;
-
-	// BARREL VARS
-	ID3D11Buffer				*pVBuffer;
-	ID3D11Buffer				*pIBuffer;
-	ID3D11ShaderResourceView	*pTextureRV;
-	ID3D11SamplerState			*pTextureSampler;
-
-	XMMATRIX					worldM;
-	XMMATRIX					viewM;
-	XMMATRIX					projM;
-
-	XMMATRIX					worldM2;
-
-	XMFLOAT4 lightDir;
-
-	XTime timer;
-
-	// WIP
-	// redoing some of the way i organize things to make model addition easier
-	// will need to loop through these buffer arrays and release each one i believe
 	unsigned int				currentIndex = 0; // every mesh created will +1 this, used for indexing when adding to the arrays
 	ID3D11Buffer				*vertexBuffers[MESH_COUNT]; // create array of vertexBuffers. if all arent used thats okay
 	ID3D11Buffer				*indexBuffers[MESH_COUNT];
@@ -113,20 +83,11 @@ class DEMO_APP
 	ID3D11Buffer				*pixelConstantBuffer;
 	ID3D11Buffer				*vertexConstantBuffer;
 
+	XMMATRIX					viewM;
+	XMMATRIX					projM;
 
-	// probably will want arrays for textures as well, right?
+	XTime						timer;
 
-	/*
-	
-	NEXT STEP:
-	update barrel to load in using the new arrays
-	THEN:
-	update Draw() to use the new arrays
-
-	*/
-	
-	// TODO: remove this, replace with the VS_buffer & PS_buffer structs
-	//		 will need to create a new constant buffer for the pixel shader
 	struct MATRIX_DATA
 	{
 		XMMATRIX world;
@@ -167,9 +128,6 @@ class DEMO_APP
 		float innerConeRatio;
 		float filler;
 	};
-	//////////////////////////
-	// END LIGHTING STRUCTS //
-	//////////////////////////
 	
 	///////////////////////////////////
 	// VERTEX CONSTANT BUFFER STRUCT //
@@ -194,14 +152,6 @@ class DEMO_APP
 
 	float pLightMove = 1.0f;
 
-	XMFLOAT4 lightPosition;
-
-	bool LoadTexture(const wchar_t *texturePath);
-	bool LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int indices[], unsigned int numVerts, unsigned int numInd, const wchar_t *texturePath);
-	bool LoadOBJ(const char *filePath, const wchar_t *texturePath);
-	bool CreateIndexedCube(float scale, const wchar_t *texturePath);
-
-public:
 	struct SIMPLE_VERTEX
 	{
 		XMFLOAT3 xyz;
@@ -210,6 +160,12 @@ public:
 		XMFLOAT3 normal;
 	};
 
+	bool LoadBuffers(SIMPLE_VERTEX verts[], short indices[], unsigned int numVerts, unsigned int numIndices);
+	bool LoadTexture(const wchar_t *texturePath);
+	bool LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int indices[], unsigned int numVerts, unsigned int numInd, const wchar_t *texturePath);
+	bool LoadOBJ(const char *filePath, const wchar_t *texturePath);
+	bool CreateIndexedCube(float scale, const wchar_t *texturePath);
+public:
 	DEMO_APP(HINSTANCE hinst, WNDPROC proc);
 
 	float currentFOV = 75.0f;
@@ -220,12 +176,44 @@ public:
 	bool ShutDown();
 	bool ResizeWindow();
 	bool MoveCamera();
-
 };
 
+//////////////////////////////////////////////////////////
+// Fills out vertex and index buffers for given arrays. 
+// Partner function for model creation.				    
+// All mesh creation functions call this.			    
+//////////////////////////////////////////////////////////
+bool DEMO_APP::LoadBuffers(SIMPLE_VERTEX verts[], short indices[], unsigned int numVerts, unsigned int numInds)
+{
+	// create vertex buffer
+	D3D11_BUFFER_DESC headerBD;
+	ZeroMemory(&headerBD, sizeof(headerBD));
+	headerBD.Usage = D3D11_USAGE_IMMUTABLE;
+	headerBD.ByteWidth = sizeof(SIMPLE_VERTEX) * numVerts;
+	headerBD.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	headerBD.CPUAccessFlags = NULL;
+
+	D3D11_SUBRESOURCE_DATA headerBufferData;
+	ZeroMemory(&headerBufferData, sizeof(headerBufferData));
+	headerBufferData.pSysMem = verts;
+	device->CreateBuffer(&headerBD, &headerBufferData, &vertexBuffers[currentIndex]);
+
+	// create index buffer
+	headerBD.Usage = D3D11_USAGE_IMMUTABLE;
+	headerBD.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	headerBD.CPUAccessFlags = NULL;
+	headerBD.ByteWidth = sizeof(short) * numInds;
+
+	headerBufferData.pSysMem = indices;
+	device->CreateBuffer(&headerBD, &headerBufferData, &indexBuffers[currentIndex]);
+
+	return true;
+}
+
 /////////////////////////////////////////////
-// Partner function for model creation.    //
-// All Load or Create functions call this. //
+// Loads texture from given texturePath.   
+// Partner function for model creation.    
+// All mesh creation functions call this.	
 /////////////////////////////////////////////
 bool DEMO_APP::LoadTexture(const wchar_t *texturePath)
 {
@@ -246,7 +234,7 @@ bool DEMO_APP::LoadTexture(const wchar_t *texturePath)
 }
 
 //////////////////////////////////////////////////////////////////////
-// Loads in OBJ, and adds it to the vertex and index buffer arrays. //
+// Loads in OBJ, and adds it to the vertex and index buffer arrays. 
 //////////////////////////////////////////////////////////////////////
 bool DEMO_APP::LoadOBJ(const char *filePath, const wchar_t *texturePath)
 {
@@ -317,9 +305,6 @@ bool DEMO_APP::LoadOBJ(const char *filePath, const wchar_t *texturePath)
 	SIMPLE_VERTEX *meshVerts = new SIMPLE_VERTEX[vertIndices.size()];
 	short *meshIndices = new short[vertIndices.size()];
 
-	//SIMPLE_VERTEX meshVerts[24];
-	//short meshIndices[36];
-
 	// fill out the vertex data
 	unsigned int numVerts = normals.size();
 	unsigned int numInd = vertIndices.size();
@@ -348,7 +333,6 @@ bool DEMO_APP::LoadOBJ(const char *filePath, const wchar_t *texturePath)
 					if (tempVertex.normal.x == meshVerts[v].normal.x && tempVertex.normal.y == meshVerts[v].normal.y && tempVertex.normal.z == meshVerts[v].normal.z)
 					{
 						isNewVert = false;
-
 						// update index list
 						meshIndices[i] = v;
 					}
@@ -360,76 +344,13 @@ bool DEMO_APP::LoadOBJ(const char *filePath, const wchar_t *texturePath)
 			meshVerts[currentVertexIndex].xyz = newVert;
 			meshVerts[currentVertexIndex].uv = newUV;
 			meshVerts[currentVertexIndex].normal = newNorm;
-
-			// update index list
+			// update index list with new vert
 			meshIndices[i] = currentVertexIndex;
-
 			// update current index
 			currentVertexIndex++;
 		}
 	}
-	/*
-	
-	for (int i = 0; i < vertIndices.size(); i++)
-	{
-		//meshIndices[i] = normIndices[i] - 1;
-		
-		XMFLOAT3 newVert = verts[vertIndices[i] - 1];
-		XMFLOAT2 newUV = uvs[uvIndices[i] - 1];
-		XMFLOAT3 newNorm = normals[normIndices[i] - 1];
-
-		SIMPLE_VERTEX tempVertex;
-		tempVertex.xyz = newVert;
-		tempVertex.uv = newUV;
-		tempVertex.normal = newNorm;
-
-		for (int v = 0; v < normals.size(); v++)
-		{
-			if (tempVertex.xyz.x == meshVerts[v].xyz.x && tempVertex.xyz.y == meshVerts[v].xyz.y && tempVertex.xyz.z == meshVerts[v].xyz.z)
-			{
-				if (tempVertex.uv.x == meshVerts[v].uv.x && tempVertex.uv.y == meshVerts[v].uv.y)
-				{
-					if (tempVertex.normal.x == meshVerts[v].normal.x && tempVertex.normal.y == meshVerts[v].normal.y && tempVertex.normal.z == meshVerts[v].normal.z)
-					{
-						meshIndices[i] = v;
-					}
-				}
-			}
-		}
-		
-		//meshIndices[i] = normIndices[i] - 1;
-
-		//meshIndices[i] = vertIndices[i] - 1;
-		// create vertex using the numbers from each array
-
-		// loop thru vertices and find which one it is
-		// store that number
-	}
-	
-	*/
-	
-
-	// create vertex buffer
-	D3D11_BUFFER_DESC headerBD;
-	ZeroMemory(&headerBD, sizeof(headerBD));
-	headerBD.Usage = D3D11_USAGE_IMMUTABLE;
-	headerBD.ByteWidth = sizeof(SIMPLE_VERTEX) * normals.size();
-	headerBD.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	headerBD.CPUAccessFlags = NULL;
-
-	D3D11_SUBRESOURCE_DATA headerBufferData;
-	ZeroMemory(&headerBufferData, sizeof(headerBufferData));
-	headerBufferData.pSysMem = meshVerts;
-	device->CreateBuffer(&headerBD, &headerBufferData, &vertexBuffers[currentIndex]);
-
-	// create index buffer
-	headerBD.Usage = D3D11_USAGE_IMMUTABLE;
-	headerBD.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	headerBD.CPUAccessFlags = NULL;
-	headerBD.ByteWidth = sizeof(short) * vertIndices.size();
-
-	headerBufferData.pSysMem = meshIndices;
-	device->CreateBuffer(&headerBD, &headerBufferData, &indexBuffers[currentIndex]);
+	LoadBuffers(meshVerts, meshIndices, normals.size(), vertIndices.size());
 
 	//update number arrays
 	numVertices[currentIndex] = normals.size();
@@ -460,27 +381,7 @@ bool DEMO_APP::LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int ind
 		meshIndices[i] = indices[i];
 	}
 
-	// create vertex buffer
-	D3D11_BUFFER_DESC headerBD;
-	ZeroMemory(&headerBD, sizeof(headerBD));
-	headerBD.Usage = D3D11_USAGE_IMMUTABLE;
-	headerBD.ByteWidth = sizeof(SIMPLE_VERTEX) * numVerts;
-	headerBD.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	headerBD.CPUAccessFlags = NULL;
-
-	D3D11_SUBRESOURCE_DATA headerBufferData;
-	ZeroMemory(&headerBufferData, sizeof(headerBufferData));
-	headerBufferData.pSysMem = meshVerts;
-	device->CreateBuffer(&headerBD, &headerBufferData, &vertexBuffers[currentIndex]);
-
-	// create index buffer
-	headerBD.Usage = D3D11_USAGE_IMMUTABLE;
-	headerBD.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	headerBD.CPUAccessFlags = NULL;
-	headerBD.ByteWidth = sizeof(short) * numInd;
-
-	headerBufferData.pSysMem = meshIndices;
-	device->CreateBuffer(&headerBD, &headerBufferData, &indexBuffers[currentIndex]);
+	LoadBuffers(meshVerts, meshIndices, numVerts, numInd);
 
 	//update number arrays
 	numVertices[currentIndex] = numVerts;
@@ -495,9 +396,8 @@ bool DEMO_APP::LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int ind
 	return true;
 }
 
-
 ///////////////////////////////////////////////////
-// Creates an indexed cube in the buffer arrays. //
+// Creates an indexed cube in the buffer arrays. 
 ///////////////////////////////////////////////////
 bool DEMO_APP::CreateIndexedCube(float scale, const wchar_t *texturePath)
 {
@@ -546,28 +446,7 @@ bool DEMO_APP::CreateIndexedCube(float scale, const wchar_t *texturePath)
 
 	};
 
-	// set vertex buffer
-	D3D11_BUFFER_DESC cubeBD;
-	ZeroMemory(&cubeBD, sizeof(cubeBD));
-	cubeBD.Usage = D3D11_USAGE_IMMUTABLE;
-	cubeBD.ByteWidth = sizeof(SIMPLE_VERTEX)* ARRAYSIZE(cube);
-	cubeBD.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	cubeBD.CPUAccessFlags = NULL;
-
-	D3D11_SUBRESOURCE_DATA cubeBufferData;
-	ZeroMemory(&cubeBufferData, sizeof(cubeBufferData));
-	cubeBufferData.pSysMem = cube;
-	device->CreateBuffer(&cubeBD, &cubeBufferData, &vertexBuffers[currentIndex]);
-
-	// create index buffer
-	cubeBD.Usage = D3D11_USAGE_IMMUTABLE;
-	cubeBD.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	cubeBD.CPUAccessFlags = NULL;
-	cubeBD.ByteWidth = sizeof(short) * ARRAYSIZE(cubeInd);
-
-	cubeBufferData.pSysMem = cubeInd;
-
-	device->CreateBuffer(&cubeBD, &cubeBufferData, &indexBuffers[currentIndex]);
+	LoadBuffers(cube, cubeInd, ARRAYSIZE(cube), ARRAYSIZE(cubeInd));
 
 	// update number arrays
 	numVertices[currentIndex] = ARRAYSIZE(cube);
@@ -630,7 +509,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	sd.SampleDesc.Count = 4; //1
 	sd.SampleDesc.Quality = D3D11_STANDARD_MULTISAMPLE_PATTERN; //0 for no MSAA
 
-	// TODO: PART 1 STEP 3b
+	// CREATE DEVICE AND SWAPCHAIN
 	D3D11CreateDeviceAndSwapChain(
 		NULL,
 		D3D_DRIVER_TYPE_HARDWARE,
@@ -699,8 +578,9 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	};
 	device->CreateInputLayout(vLayout, ARRAYSIZE(vLayout), Trivial_VS, sizeof(Trivial_VS), &inputLayout);
 
-	// LOAD MESHES AND THEIR BUFFERS
-
+	///////////////////////////////////
+	// LOAD MESHES AND THEIR BUFFERS //
+	///////////////////////////////////
 	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(4.0f, 0.0f, 0.0f);
 	LoadMeshFromHeader(Barrel_data, Barrel_indicies, ARRAYSIZE(Barrel_data), ARRAYSIZE(Barrel_indicies), L"barrel.dds");
 	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(3.0f, 2.0f, 0.0f);
@@ -712,26 +592,17 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	worldMatrices[currentIndex] = XMMatrixScaling(15.0f, 2.0f, 15.0f) * XMMatrixIdentity() * 	XMMatrixTranslation(0.0f, 9.0f, 0.0f);
 	LoadMeshFromHeader(test_pyramid_data, test_pyramid_indicies, ARRAYSIZE(test_pyramid_data), ARRAYSIZE(test_pyramid_indicies), L"barrel.dds");
 
-
-
-	// testing OBJ loader
 	worldMatrices[currentIndex] = XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixIdentity() * XMMatrixTranslation(-5.0f, 0.0f, 0.0f);
 	bool result = LoadOBJ("penguin.obj", L"peng.dds");
 	worldMatrices[currentIndex] = XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixIdentity() * XMMatrixTranslation(-7.0f, 0.0f, 0.0f);
 	LoadMeshFromHeader(penguin_data, penguin_indicies, ARRAYSIZE(penguin_data), ARRAYSIZE(penguin_indicies), L"peng.dds");
 
-	// test over
-
-	// testing cube
 	CreateIndexedCube(0.5f, L"barrel.dds");
+	//////////////////////
+	// END MESH LOADING //
+	//////////////////////
 
-
-	// create matrices
-	worldM = XMMatrixIdentity();
-	worldM2 = XMMatrixIdentity();
-
-	// view matrix & proj, REPLACE THIS!!!
-	
+	// view matrix & proj
 	XMVECTOR Eye = XMVectorSet(2.5f, 1.0f, -2.5f, 0.0f);
 	XMVECTOR At = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 	XMVECTOR Up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
@@ -744,28 +615,6 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	viewM = XMMatrixLookAtLH(Eye, At, Up);
 
 	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), BACKBUFFER_WIDTH / (FLOAT)BACKBUFFER_HEIGHT, 0.01f, 100.0f);
-	lightDir = XMFLOAT4(-1.0f, 0.0f, 0.0f, 1.0f);
-
-
-	//TODO REMOVE ALL THIS CODE ONCE TEXTURE ARRAYS SUPPORTED
-
-	// load texture
-	CreateDDSTextureFromFile(device, L"crate1_diffuse.dds", nullptr, &textureRV);
-	// create sampler state
-	D3D11_SAMPLER_DESC samplerDesc;
-	ZeroMemory(&samplerDesc, sizeof(samplerDesc));
-	samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-	samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-	samplerDesc.MinLOD = 0;
-	samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
-	device->CreateSamplerState(&samplerDesc, &textureSampler);
-
-	// load barrel texture
-	CreateDDSTextureFromFile(device, L"barrel.dds", nullptr, &pTextureRV);
-	device->CreateSamplerState(&samplerDesc, &pTextureSampler);
 
 	// NEW CONSTANT BUFFERS
 	D3D11_BUFFER_DESC cbDesc;
@@ -796,7 +645,6 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	psData.spot[0].lightRad = 100.0f;
 	psData.spot[0].outerConeRatio = 0.96f;
 	psData.spot[0].innerConeRatio = 0.98f;
-	
 }
 
 //************************************************************
@@ -825,34 +673,31 @@ bool DEMO_APP::Run()
 	context->VSSetShader(vs, 0, 0);
 	context->PSSetShader(ps, 0, 0);
 
-	//context->PSSetShaderResources(0, 1, &textureRV);
-	//context->PSSetSamplers(0, 1, &textureSampler);
-
-	// update lights to be dynamic
+	///////////////////
+	// LIGHT UPDATES //
+	///////////////////
 	double time = timer.TotalTime();
 
-	// first spotlight
+	// SPOTLIGHT
 	XMMATRIX spinM = XMMatrixRotationX(-timer.Delta());
 	XMMATRIX dirSpin = XMMatrixRotationY(-timer.Delta());
 	XMMATRIX orbitM = XMMatrixRotationY(-time * 5);
 	XMMATRIX translateM = XMMatrixTranslation(-1.5f, 3.0f, 0.0f);
+	//worldM2 = scaleM * spinM * translateM * orbitM;
 
 	XMMATRIX spotM = translateM * orbitM;
-
-	//XMVECTOR spotPos = XMLoadFloat4(&psData.spot[0].lightPos);
 	XMStoreFloat4(&psData.spot[0].lightPos, spotM.r[3]);
-
 	XMVECTOR spotDir = XMLoadFloat4(&(psData.spot[0].lightDirection));
 	spotDir = XMVector3Transform(spotDir, spinM);
 	XMStoreFloat4(&psData.spot[0].lightDirection, spotDir);
-
+	
+	// DIRECTIONAL LIGHT
 	XMVECTOR dirDir = XMLoadFloat4(&(psData.directional[0].lightDirection));
 	dirDir = XMVector3Transform(dirDir, dirSpin);
 	XMStoreFloat4(&psData.directional[0].lightDirection, dirDir);
 
 	// NEXT POINT LIGHT
 	// starting Y = 2, max = 4
-
 	if (psData.point[0].lightPos.y > 4.0f)
 	{
 		pLightMove = -1;
@@ -862,47 +707,13 @@ bool DEMO_APP::Run()
 		pLightMove = 1;
 	}
 	psData.point[0].lightPos.y += timer.Delta() * pLightMove * 0.5f;
-	
-	
+	///////////////////////
+	// END LIGHT UPDATES //
+	///////////////////////
 
-
-	/*
-	// UPDATE ANY MATRIX DATA
-	double time = timer.TotalTime();
-
-	//worldM = XMMatrixRotationY(-time);
-
-	XMMATRIX spinM = XMMatrixRotationY(-time);
-	XMMATRIX orbitM = XMMatrixRotationY(-time * 1.5f);
-	XMMATRIX translateM = XMMatrixTranslation(-1.5f, 0.0f, 0.0f);
-	XMMATRIX scaleM = XMMatrixScaling(0.25f, 0.25f, 0.25f);
-	worldM2 = scaleM * spinM * translateM * orbitM;
-
-	// SECOND CUBE STUFF	
-	MATRIX_DATA cbData2;
-	cbData2.world = worldM2;
-	cbData2.view = viewM;
-	cbData2.proj = projM;
-	
-	cbData.world = worldM2;
-	//cbData.lightColor = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
-	
-	D3D11_MAPPED_SUBRESOURCE cubeSub2;
-
-	context->Map(constantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &cubeSub2);
-	memcpy(cubeSub2.pData, &cbData, sizeof(cbData));
-	context->Unmap(constantBuffer, NULL);
-	context->DrawIndexed(36, 0, 0);
-	*/
 	UINT strides = sizeof(SIMPLE_VERTEX);
 	UINT offsets = 0;
 	context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	//context->IASetVertexBuffers(0, 1, &pVBuffer, &strides, &offsets);
-	//context->IASetIndexBuffer(pIBuffer, DXGI_FORMAT_R16_UINT, 0);
-
-	context->PSSetShaderResources(0, 1, &pTextureRV);
-	context->PSSetSamplers(0, 1, &pTextureSampler);
-
 
 	VS_BUFFER_DATA vsData;
 	vsData.view = viewM;
@@ -922,9 +733,7 @@ bool DEMO_APP::Run()
 		context->PSSetSamplers(0, 1, &textureSamplers[i]);
 
 		// update vertex shader with new info
-
 		vsData.world = worldMatrices[i];
-
 		D3D11_MAPPED_SUBRESOURCE vsSub;
 		context->Map(vertexConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
 		memcpy(vsSub.pData, &vsData, sizeof(vsData));
@@ -955,18 +764,6 @@ bool DEMO_APP::ShutDown()
 	ps->Release();
 	depthStencil->Release();
 	depthStencilView->Release();
-
-	//vertexBuffer->Release();
-	//indexBuffer->Release();
-	//constantBuffer->Release();
-
-	textureRV->Release();
-	textureSampler->Release();
-
-	//pVBuffer->Release();
-	//pIBuffer->Release();
-	pTextureRV->Release();
-	pTextureSampler->Release();
 
 	for (int i = 0; i < currentIndex; i++) //only loop to current index, otherwise out of bounds
 	{
