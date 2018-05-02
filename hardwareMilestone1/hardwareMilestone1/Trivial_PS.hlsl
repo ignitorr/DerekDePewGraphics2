@@ -108,7 +108,7 @@ float4 main(OUTPUT_VERTEX vert) : SV_TARGET
 
 
 	float4 final = tex.Sample(sampl, vert.texOut);
-	float4 ambient = final * float4(0.25, 0.25, 0.25, 1);
+	float4 ambient = final * float4(0.15, 0.15, 0.15, 1);
 	
 	uint currentLight = 0;
 

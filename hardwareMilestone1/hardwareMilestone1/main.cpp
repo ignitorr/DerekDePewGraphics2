@@ -210,11 +210,11 @@ bool DEMO_APP::LoadBuffers(SIMPLE_VERTEX verts[], short indices[], unsigned int 
 	return true;
 }
 
-/////////////////////////////////////////////
-// Loads texture from given texturePath.   
+////////////////////////////////////////////
+// Loads texture from given texturePath.  
 // Partner function for model creation.    
 // All mesh creation functions call this.	
-/////////////////////////////////////////////
+///////////////////////////////////////////
 bool DEMO_APP::LoadTexture(const wchar_t *texturePath)
 {
 	CreateDDSTextureFromFile(device, texturePath, nullptr, &textureRVs[currentIndex]);
@@ -578,44 +578,6 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	};
 	device->CreateInputLayout(vLayout, ARRAYSIZE(vLayout), Trivial_VS, sizeof(Trivial_VS), &inputLayout);
 
-	///////////////////////////////////
-	// LOAD MESHES AND THEIR BUFFERS //
-	///////////////////////////////////
-	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(4.0f, 0.0f, 0.0f);
-	LoadMeshFromHeader(Barrel_data, Barrel_indicies, ARRAYSIZE(Barrel_data), ARRAYSIZE(Barrel_indicies), L"barrel.dds");
-	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(3.0f, 2.0f, 0.0f);
-	LoadMeshFromHeader(Barrel_data, Barrel_indicies, ARRAYSIZE(Barrel_data), ARRAYSIZE(Barrel_indicies), L"barrel.dds");
-	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(5.0f, 2.0f, 0.0f);
-	LoadMeshFromHeader(Barrel_data, Barrel_indicies, ARRAYSIZE(Barrel_data), ARRAYSIZE(Barrel_indicies), L"barrel.dds");
-	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(4.0f, 4.0f, 0.0f);
-	LoadMeshFromHeader(Barrel_data, Barrel_indicies, ARRAYSIZE(Barrel_data), ARRAYSIZE(Barrel_indicies), L"barrel.dds");
-	worldMatrices[currentIndex] = XMMatrixScaling(15.0f, 2.0f, 15.0f) * XMMatrixIdentity() * 	XMMatrixTranslation(0.0f, 9.0f, 0.0f);
-	LoadMeshFromHeader(test_pyramid_data, test_pyramid_indicies, ARRAYSIZE(test_pyramid_data), ARRAYSIZE(test_pyramid_indicies), L"barrel.dds");
-
-	worldMatrices[currentIndex] = XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixIdentity() * XMMatrixTranslation(-5.0f, 0.0f, 0.0f);
-	bool result = LoadOBJ("penguin.obj", L"peng.dds");
-	worldMatrices[currentIndex] = XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixIdentity() * XMMatrixTranslation(-7.0f, 0.0f, 0.0f);
-	LoadMeshFromHeader(penguin_data, penguin_indicies, ARRAYSIZE(penguin_data), ARRAYSIZE(penguin_indicies), L"peng.dds");
-
-	CreateIndexedCube(0.5f, L"barrel.dds");
-	//////////////////////
-	// END MESH LOADING //
-	//////////////////////
-
-	// view matrix & proj
-	XMVECTOR Eye = XMVectorSet(2.5f, 1.0f, -2.5f, 0.0f);
-	XMVECTOR At = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-	XMVECTOR Up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-	
-	/*
-	viewM = XMMatrixRotationX(45.0f);
-	viewM = XMMatrixMultiply(XMMatrixTranslation(0.0f, 0.0f, -3.0f), viewM);
-	viewM = XMMatrixInverse(0, viewM);
-	*/
-	viewM = XMMatrixLookAtLH(Eye, At, Up);
-
-	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), BACKBUFFER_WIDTH / (FLOAT)BACKBUFFER_HEIGHT, 0.01f, 100.0f);
-
 	// NEW CONSTANT BUFFERS
 	D3D11_BUFFER_DESC cbDesc;
 	ZeroMemory(&cbDesc, sizeof(cbDesc));
@@ -630,6 +592,39 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	// NOW PIXEL CONSTANT BUFFER
 	cbDesc.ByteWidth = sizeof(PS_BUFFER_DATA);
 	device->CreateBuffer(&cbDesc, NULL, &pixelConstantBuffer);
+
+	///////////////////////////////////
+	// LOAD MESHES AND THEIR BUFFERS //
+	///////////////////////////////////
+	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(4.0f, 0.0f, 0.0f);
+	//LoadMeshFromHeader(Barrel_data, Barrel_indicies, ARRAYSIZE(Barrel_data), ARRAYSIZE(Barrel_indicies), L"barrel.dds");
+	LoadOBJ("Barrel.obj", L"barrel.dds");
+	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(3.0f, 2.0f, 0.0f);
+	LoadOBJ("Barrel.obj", L"barrel.dds");
+	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(5.0f, 2.0f, 0.0f);
+	LoadOBJ("Barrel.obj", L"barrel.dds");
+	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(4.0f, 4.0f, 0.0f);
+	LoadOBJ("Barrel.obj", L"barrel.dds");
+	worldMatrices[currentIndex] = XMMatrixScaling(15.0f, 2.0f, 15.0f) * XMMatrixIdentity() * XMMatrixTranslation(0.0f, 9.0f, 0.0f);
+	LoadMeshFromHeader(test_pyramid_data, test_pyramid_indicies, ARRAYSIZE(test_pyramid_data), ARRAYSIZE(test_pyramid_indicies), L"barrel.dds");
+
+	worldMatrices[currentIndex] = XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixIdentity() * XMMatrixTranslation(-5.0f, 0.0f, 0.0f);
+	bool result = LoadOBJ("penguin.obj", L"peng.dds");
+	worldMatrices[currentIndex] = XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixIdentity() * XMMatrixTranslation(-7.0f, 0.0f, 0.0f);
+	LoadMeshFromHeader(penguin_data, penguin_indicies, ARRAYSIZE(penguin_data), ARRAYSIZE(penguin_indicies), L"peng.dds");
+
+	CreateIndexedCube(0.5f, L"barrel.dds");
+	//////////////////////
+	// END MESH LOADING //
+	//////////////////////
+
+	// view matrix & proj
+	XMVECTOR eye = XMVectorSet(0.0f, 2.0f, -3.0f, 0.0f);
+	XMVECTOR at = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	viewM = XMMatrixLookAtLH(eye, at, up);
+
+	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), BACKBUFFER_WIDTH / (FLOAT)BACKBUFFER_HEIGHT, 0.01f, 100.0f);
 
 	// for now, just hard code the lights
 	psData.directional[0].lightDirection = XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f);
@@ -834,9 +829,9 @@ bool DEMO_APP::MoveCamera()
 	// speed modifier
 	float speed = 3.0f;
 
-	unsigned int inputs[] = { 'W', 'A', 'S', 'D', 'Q', 'E', VK_UP, VK_DOWN, VK_RBUTTON};
-	float activeKeys[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-	float keyEffect[] = { 1, -1, -1, 1, 1, -1, -1, 1, 0 };
+	unsigned int inputs[] = { 'W', 'A', 'S', 'D', 'Q', 'E', VK_UP, VK_DOWN, VK_RBUTTON, VK_SHIFT};
+	float activeKeys[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+	float keyEffect[] = { 1, -1, -1, 1, 1, -1, -1, 1, 0, 3 };
 
 	static POINT prev;
 	if (prev.x == NULL)
@@ -890,7 +885,12 @@ bool DEMO_APP::MoveCamera()
 		speed * time * ((activeKeys[5] * keyEffect[5]) + (activeKeys[4] * keyEffect[4])),
 		speed * time * ((activeKeys[0] * keyEffect[0]) + (activeKeys[2] * keyEffect[2]))
 	);
-
+	if (activeKeys[9])
+	{
+		translation.x *= (activeKeys[9] * keyEffect[9]);
+		translation.y *= (activeKeys[9] * keyEffect[9]);
+		translation.z *= (activeKeys[9] * keyEffect[9]);
+	}
 
 	XMMATRIX translate = XMMatrixTranslation(translation.x, translation.y, translation.z);
 	worldViewM = translate * worldViewM;
