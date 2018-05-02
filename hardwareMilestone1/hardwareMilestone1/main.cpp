@@ -35,6 +35,7 @@ using namespace DirectX;
 // TODO: PART 2 STEP 6
 #include "Trivial_VS.csh"
 #include "Trivial_PS.csh"
+#include "Skybox_PS.csh";
 
 #define BACKBUFFER_WIDTH	1200
 #define BACKBUFFER_HEIGHT	800
@@ -43,6 +44,7 @@ using namespace DirectX;
 #define D_LIGHTS 1
 #define P_LIGHTS 1
 #define S_LIGHTS 1
+#define SKYBOX_SCALE -3000
 
 //************************************************************
 //************ SIMPLE WINDOWS APP CLASS **********************
@@ -74,6 +76,8 @@ class DEMO_APP
 	//ID3D11RasterizerState		*rState;
 	//D3D11_RASTERIZER_DESC		regularRDesc;
 	//D3D11_RASTERIZER_DESC		skyboxRDesc;
+	ID3D11PixelShader			*skyboxPS;
+	XMMATRIX					skyboxM;
 	// END SKYBOX
 
 
@@ -575,6 +579,8 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	// DEFINE SHADERS
 	device->CreateVertexShader(Trivial_VS, sizeof(Trivial_VS), NULL, &vs);
 	device->CreatePixelShader(Trivial_PS, sizeof(Trivial_PS), NULL, &ps);
+	device->CreatePixelShader(Skybox_PS, sizeof(Skybox_PS), NULL, &skyboxPS);
+	
 
 	// CREATE INPUT LAYOUT
 	D3D11_INPUT_ELEMENT_DESC vLayout[] =
@@ -632,7 +638,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 	viewM = XMMatrixLookAtLH(eye, at, up);
 
-	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), BACKBUFFER_WIDTH / (FLOAT)BACKBUFFER_HEIGHT, 0.01f, 100.0f);
+	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), BACKBUFFER_WIDTH / (FLOAT)BACKBUFFER_HEIGHT, 0.01f, 10000.0f);
 
 	// for now, just hard code the lights
 	psData.directional[0].lightDirection = XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f);
@@ -682,7 +688,8 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	device->CreateRasterizerState(&regularRDesc, &rState);
 	*/
 
-	CreateIndexedCube(-100.0f, L"skyBox.dds");
+	CreateIndexedCube((float)SKYBOX_SCALE, L"skyBox.dds");
+	skyboxM = XMMatrixIdentity();
 
 }
 
@@ -770,6 +777,8 @@ bool DEMO_APP::Run()
 	// LOOP THRU ARRAYS AND DRAW =)
 	for (int i = 0; i < currentIndex; i++)
 	{
+		if (i == currentIndex-1)
+			context->PSSetShader(skyboxPS, 0, 0);
 		context->IASetVertexBuffers(0, 1, &vertexBuffers[i], &strides, &offsets);
 		context->IASetIndexBuffer(indexBuffers[i], DXGI_FORMAT_R16_UINT, 0);
 		context->PSSetShaderResources(0, 1, &textureRVs[i]);
@@ -777,6 +786,8 @@ bool DEMO_APP::Run()
 
 		// update vertex shader with new info
 		vsData.world = worldMatrices[i];
+		if (i == currentIndex - 1)
+			vsData.world = skyboxM;
 		D3D11_MAPPED_SUBRESOURCE vsSub;
 		context->Map(vertexConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
 		memcpy(vsSub.pData, &vsData, sizeof(vsData));
@@ -824,6 +835,7 @@ bool DEMO_APP::ShutDown()
 	inputLayout->Release();
 	vs->Release();
 	ps->Release();
+	skyboxPS->Release();
 	depthStencil->Release();
 	depthStencilView->Release();
 
@@ -966,11 +978,18 @@ bool DEMO_APP::MoveCamera()
 	worldViewM = translate * worldViewM;
 	viewM = XMMatrixInverse(0, worldViewM);
 
+	// update skybox pos to camera pos
+	XMVECTOR offset = worldViewM.r[3];
+	XMFLOAT4 cameraPosition;
+	XMStoreFloat4(&cameraPosition, offset);
+	XMMATRIX skyboxT = XMMatrixTranslation(cameraPosition.x, cameraPosition.y, cameraPosition.z);
+	skyboxM = XMMatrixScaling((float)SKYBOX_SCALE, (float)SKYBOX_SCALE, (float)SKYBOX_SCALE) * skyboxT * XMMatrixIdentity();
+
 	//update proj matrix with new FOV
 	DXGI_SWAP_CHAIN_DESC current;
 	swap->GetDesc(&current);
 	
-	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), (float)current.BufferDesc.Width / (float)current.BufferDesc.Height, 0.1f, 100.0f);
+	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), (float)current.BufferDesc.Width / (float)current.BufferDesc.Height, 0.1f, 10000.0f);
 
 	prev = cursorPos;
 	return true;
