@@ -51,12 +51,16 @@
   <ItemGroup>
     <FxCompile Include="Trivial_VS.hlsl" />
     <FxCompile Include="Trivial_PS.hlsl" />
+    <FxCompile Include="Skybox_PS.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="crate1_diffuse.dds">
       <Filter>Resource Files</Filter>
     </Image>
     <Image Include="barrel.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="skyBox.dds">
       <Filter>Resource Files</Filter>
     </Image>
   </ItemGroup>

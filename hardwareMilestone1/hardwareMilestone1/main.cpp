@@ -69,6 +69,14 @@ class DEMO_APP
 	ID3D11Texture2D				*depthStencil;
 	ID3D11DepthStencilView		*depthStencilView;
 
+
+	// SKYBOX STUFF
+	//ID3D11RasterizerState		*rState;
+	//D3D11_RASTERIZER_DESC		regularRDesc;
+	//D3D11_RASTERIZER_DESC		skyboxRDesc;
+	// END SKYBOX
+
+
 	unsigned int				currentIndex = 0; // every mesh created will +1 this, used for indexing when adding to the arrays
 	ID3D11Buffer				*vertexBuffers[MESH_COUNT]; // create array of vertexBuffers. if all arent used thats okay
 	ID3D11Buffer				*indexBuffers[MESH_COUNT];
@@ -640,6 +648,42 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	psData.spot[0].lightRad = 100.0f;
 	psData.spot[0].outerConeRatio = 0.96f;
 	psData.spot[0].innerConeRatio = 0.98f;
+
+
+
+
+
+
+
+	// WIP SKYBOX CODE:
+	/*
+	regularRDesc.FillMode = D3D11_FILL_SOLID;
+	regularRDesc.CullMode = D3D11_CULL_FRONT;
+	regularRDesc.FrontCounterClockwise = true;
+	regularRDesc.DepthBias = false;
+	regularRDesc.DepthBiasClamp = 0;
+	regularRDesc.SlopeScaledDepthBias = 0;
+	regularRDesc.DepthClipEnable = true;
+	regularRDesc.ScissorEnable = true;
+	regularRDesc.MultisampleEnable = false;
+	regularRDesc.AntialiasedLineEnable = false;
+
+	skyboxRDesc.FillMode = D3D11_FILL_SOLID;
+	skyboxRDesc.CullMode = D3D11_CULL_NONE;
+	skyboxRDesc.FrontCounterClockwise = true;
+	skyboxRDesc.DepthBias = false;
+	skyboxRDesc.DepthBiasClamp = 0;
+	skyboxRDesc.SlopeScaledDepthBias = 0;
+	skyboxRDesc.DepthClipEnable = false;
+	skyboxRDesc.ScissorEnable = true;
+	skyboxRDesc.MultisampleEnable = false;
+	skyboxRDesc.AntialiasedLineEnable = false;
+
+	device->CreateRasterizerState(&regularRDesc, &rState);
+	*/
+
+	CreateIndexedCube(-100.0f, L"skyBox.dds");
+
 }
 
 //************************************************************
@@ -648,6 +692,11 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 bool DEMO_APP::Run()
 {
+
+	// reset raster state
+//	device->CreateRasterizerState(&regularRDesc, &rState);
+	// for skybox
+
 	timer.Signal();
 	MoveCamera();
 	context->OMSetRenderTargets(1, &rtv, depthStencilView);
@@ -718,7 +767,6 @@ bool DEMO_APP::Run()
 	context->Map(pixelConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &psSub);
 	memcpy(psSub.pData, &psData, sizeof(psData));
 	context->Unmap(pixelConstantBuffer, NULL);
-	
 	// LOOP THRU ARRAYS AND DRAW =)
 	for (int i = 0; i < currentIndex; i++)
 	{
@@ -736,6 +784,25 @@ bool DEMO_APP::Run()
 
 		context->DrawIndexed(numIndices[i], 0, 0);
 	}
+
+	/*
+	// swap raster state for skybox
+	device->CreateRasterizerState(&skyboxRDesc, &rState);
+	
+	// get ready to draw skybox...
+	context->IASetVertexBuffers(0, 1, &vertexBuffers[currentIndex], &strides, &offsets);
+	context->IASetIndexBuffer(indexBuffers[currentIndex], DXGI_FORMAT_R16_UINT, 0);
+	context->PSSetShaderResources(0, 1, &textureRVs[currentIndex]);
+	context->PSSetSamplers(0, 1, &textureSamplers[currentIndex]);
+
+	vsData.world = worldMatrices[currentIndex];
+	D3D11_MAPPED_SUBRESOURCE vsSub;
+	context->Map(vertexConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
+	memcpy(vsSub.pData, &vsData, sizeof(vsData));
+	context->Unmap(vertexConstantBuffer, NULL);
+
+	context->DrawIndexed(numIndices[currentIndex], 0, 0);
+	*/
 	
 
 	swap->Present(0, 0);
@@ -770,6 +837,9 @@ bool DEMO_APP::ShutDown()
 
 	pixelConstantBuffer->Release();
 	vertexConstantBuffer->Release();
+
+
+//	rState->Release();
 
 	UnregisterClass(L"DirectXApplication", application);
 	return true;
