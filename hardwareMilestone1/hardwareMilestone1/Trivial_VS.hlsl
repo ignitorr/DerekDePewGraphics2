@@ -5,7 +5,7 @@ struct INPUT_VERTEX
 	//float4 color : COLOR;
 	float2 tex : TEXCOORD0;
 	float3 norm : NORMAL;
-
+	uint instanceID : SV_INSTANCEID;
 };
 
 struct OUTPUT_VERTEX
@@ -30,6 +30,7 @@ OUTPUT_VERTEX main(INPUT_VERTEX fromVertexBuffer)
 	sendToRasterizer.projectedCoordinate.w = 1;
 
 	sendToRasterizer.projectedCoordinate.xyz = fromVertexBuffer.coordinate.xyz;
+	sendToRasterizer.projectedCoordinate.z += 2.0f * fromVertexBuffer.instanceID;
 	sendToRasterizer.projectedCoordinate = mul(sendToRasterizer.projectedCoordinate, world);
 	sendToRasterizer.worldPos = sendToRasterizer.projectedCoordinate;
 	sendToRasterizer.projectedCoordinate = mul(sendToRasterizer.projectedCoordinate, view);
