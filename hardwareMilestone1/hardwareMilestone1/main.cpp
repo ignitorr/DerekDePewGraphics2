@@ -35,7 +35,8 @@ using namespace DirectX;
 // TODO: PART 2 STEP 6
 #include "Trivial_VS.csh"
 #include "Trivial_PS.csh"
-#include "Skybox_PS.csh";
+#include "Skybox_PS.csh"
+#include "Skybox_VS.csh"
 
 #define BACKBUFFER_WIDTH	1200
 #define BACKBUFFER_HEIGHT	800
@@ -44,7 +45,7 @@ using namespace DirectX;
 #define D_LIGHTS 1
 #define P_LIGHTS 1
 #define S_LIGHTS 1
-#define SKYBOX_SCALE -3000
+#define SKYBOX_SCALE -1
 
 //************************************************************
 //************ SIMPLE WINDOWS APP CLASS **********************
@@ -77,7 +78,14 @@ class DEMO_APP
 	//D3D11_RASTERIZER_DESC		regularRDesc;
 	//D3D11_RASTERIZER_DESC		skyboxRDesc;
 	ID3D11PixelShader			*skyboxPS;
+	ID3D11VertexShader			*skyboxVS;
 	XMMATRIX					skyboxM;
+	ID3D11Buffer				*skyboxVBuffer;
+	ID3D11Buffer				*skyboxIBuffer;
+	ID3D11ShaderResourceView	*skyboxRV;
+	ID3D11SamplerState			*skyboxSampler;
+	ID3D11Buffer				*skyboxConstantBuffer;
+
 	// END SKYBOX
 
 
@@ -141,14 +149,22 @@ class DEMO_APP
 		float filler;
 	};
 	
-	///////////////////////////////////
-	// VERTEX CONSTANT BUFFER STRUCT //
-	///////////////////////////////////
+	////////////////////////////////////
+	// VERTEX CONSTANT BUFFER STRUCTS //
+	////////////////////////////////////
 	struct VS_BUFFER_DATA
 	{
 		XMMATRIX world;
 		XMMATRIX view;
 		XMMATRIX proj;
+	};
+
+	struct SKYBOX_VS_DATA
+	{
+		XMMATRIX world;
+		XMMATRIX view;
+		XMMATRIX proj;
+		XMFLOAT3 cameraPos;
 	};
 	//////////////////////////////////
 	// PIXEL CONSTANT BUFFER STRUCT //
@@ -177,6 +193,7 @@ class DEMO_APP
 	bool LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int indices[], unsigned int numVerts, unsigned int numInd, const wchar_t *texturePath);
 	bool LoadOBJ(const char *filePath, const wchar_t *texturePath);
 	bool CreateIndexedCube(float scale, const wchar_t *texturePath);
+	bool CreateSkybox(const wchar_t *texturePath);
 public:
 	DEMO_APP(HINSTANCE hinst, WNDPROC proc);
 
@@ -476,6 +493,94 @@ bool DEMO_APP::CreateIndexedCube(float scale, const wchar_t *texturePath)
 	return true;
 }
 
+//////////////////////////////////////////////////////
+// Creates a Skybox with the given cubemap texture. 
+//////////////////////////////////////////////////////
+bool DEMO_APP::CreateSkybox(const wchar_t *texturePath)
+{
+	SIMPLE_VERTEX cube[] =
+	{
+		{ XMFLOAT3(-0.5f, 0.5f,-0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
+		{ XMFLOAT3(0.5f, 0.5f,-0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
+		{ XMFLOAT3(0.5f,0.5f,0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
+		{ XMFLOAT3(-0.5f,0.5f,0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
+
+		{ XMFLOAT3(-0.5f, -0.5f, -0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
+		{ XMFLOAT3(0.5f, -0.5f, -0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
+		{ XMFLOAT3(0.5f,-0.5f, 0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
+		{ XMFLOAT3(-0.5f,-0.5f, 0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
+
+		{ XMFLOAT3(-0.5f,-0.5f, 0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
+		{ XMFLOAT3(-0.5f,-0.5f, -0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
+		{ XMFLOAT3(-0.5f,0.5f, -0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
+		{ XMFLOAT3(-0.5f,0.5f, 0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
+
+		{ XMFLOAT3(0.5f, -0.5f, 0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
+		{ XMFLOAT3(0.5f, -0.5f, -0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
+		{ XMFLOAT3(0.5f, 0.5f, -0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
+		{ XMFLOAT3(0.5f, 0.5f, 0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
+
+		{ XMFLOAT3(-0.5f, -0.5f, -0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
+		{ XMFLOAT3(0.5f, -0.5f, -0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
+		{ XMFLOAT3(0.5f, 0.5f, -0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
+		{ XMFLOAT3(-0.5f, 0.5f, -0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
+
+		{ XMFLOAT3(-0.5f, -0.5f, 0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
+		{ XMFLOAT3(0.5f, -0.5f, 0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
+		{ XMFLOAT3(0.5f, 0.5f, 0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
+		{ XMFLOAT3(-0.5f, 0.5f, 0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
+
+	};
+	short cubeInd[] =
+	{
+
+		3,1,0, 2,1,3,
+		6,4,5, 7,4,6,
+		11,9,8, 10,9,11,
+		14,12,13, 15,12,14,
+		19,17,16, 18,17,19,
+		22,20,21, 23,20,22
+
+	};
+
+	// create vertex buffer
+	D3D11_BUFFER_DESC headerBD;
+	ZeroMemory(&headerBD, sizeof(headerBD));
+	headerBD.Usage = D3D11_USAGE_IMMUTABLE;
+	headerBD.ByteWidth = sizeof(SIMPLE_VERTEX) * ARRAYSIZE(cube);
+	headerBD.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	headerBD.CPUAccessFlags = NULL;
+
+	D3D11_SUBRESOURCE_DATA headerBufferData;
+	ZeroMemory(&headerBufferData, sizeof(headerBufferData));
+	headerBufferData.pSysMem = cube;
+	device->CreateBuffer(&headerBD, &headerBufferData, &skyboxVBuffer);
+
+	// create index buffer
+	headerBD.Usage = D3D11_USAGE_IMMUTABLE;
+	headerBD.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	headerBD.CPUAccessFlags = NULL;
+	headerBD.ByteWidth = sizeof(short) * ARRAYSIZE(cubeInd);
+
+	headerBufferData.pSysMem = cubeInd;
+	device->CreateBuffer(&headerBD, &headerBufferData, &skyboxIBuffer);
+
+	CreateDDSTextureFromFile(device, texturePath, nullptr, &skyboxRV);
+
+	D3D11_SAMPLER_DESC samplerDesc;
+	ZeroMemory(&samplerDesc, sizeof(samplerDesc));
+	samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+	samplerDesc.MinLOD = 0;
+	samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+	device->CreateSamplerState(&samplerDesc, &skyboxSampler);
+
+	return true;
+}
+
 //************************************************************
 //************ CREATION OF OBJECTS & RESOURCES ***************
 //************************************************************
@@ -579,7 +684,10 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	// DEFINE SHADERS
 	device->CreateVertexShader(Trivial_VS, sizeof(Trivial_VS), NULL, &vs);
 	device->CreatePixelShader(Trivial_PS, sizeof(Trivial_PS), NULL, &ps);
+
+	HRESULT rest = device->CreateVertexShader(Skybox_VS, sizeof(Skybox_VS), NULL, &skyboxVS);
 	device->CreatePixelShader(Skybox_PS, sizeof(Skybox_PS), NULL, &skyboxPS);
+
 	
 
 	// CREATE INPUT LAYOUT
@@ -638,7 +746,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 	viewM = XMMatrixLookAtLH(eye, at, up);
 
-	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), BACKBUFFER_WIDTH / (FLOAT)BACKBUFFER_HEIGHT, 0.01f, 10000.0f);
+	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), BACKBUFFER_WIDTH / (FLOAT)BACKBUFFER_HEIGHT, 0.01f, 100.0f);
 
 	// for now, just hard code the lights
 	psData.directional[0].lightDirection = XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f);
@@ -654,10 +762,6 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	psData.spot[0].lightRad = 100.0f;
 	psData.spot[0].outerConeRatio = 0.96f;
 	psData.spot[0].innerConeRatio = 0.98f;
-
-
-
-
 
 
 
@@ -688,8 +792,14 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	device->CreateRasterizerState(&regularRDesc, &rState);
 	*/
 
-	CreateIndexedCube((float)SKYBOX_SCALE, L"skyBox.dds");
-	skyboxM = XMMatrixIdentity();
+
+
+	//CreateIndexedCube((float)SKYBOX_SCALE, L"skyBox.dds");
+	CreateSkybox(L"skyBox.dds");
+	skyboxM = XMMatrixIdentity() * XMMatrixScaling((float)SKYBOX_SCALE, (float)SKYBOX_SCALE, (float)SKYBOX_SCALE);
+
+	cbDesc.ByteWidth = sizeof(SKYBOX_VS_DATA);
+	device->CreateBuffer(&cbDesc, NULL, &skyboxConstantBuffer);
 
 }
 
@@ -716,6 +826,36 @@ bool DEMO_APP::Run()
 	context->IASetInputLayout(inputLayout);
 
 	// CLEAR DEPTH TO 1.0
+	context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
+
+	// SKYBOX
+	UINT strides = sizeof(SIMPLE_VERTEX);
+	UINT offsets = 0;
+	context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	context->VSSetShader(skyboxVS, 0, 0);
+	context->PSSetShader(skyboxPS, 0, 0);
+	context->VSSetConstantBuffers(0, 1, &skyboxConstantBuffer);
+	context->IASetVertexBuffers(0, 1, &skyboxVBuffer, &strides, &offsets);
+	context->IASetIndexBuffer(skyboxIBuffer, DXGI_FORMAT_R16_UINT, 0);
+	context->PSSetShaderResources(0, 1, &skyboxRV);
+	context->PSSetSamplers(0, 1, &skyboxSampler);
+
+	SKYBOX_VS_DATA skyVSData;
+	skyVSData.world = skyboxM;
+	skyVSData.view = viewM;
+	skyVSData.proj = projM;
+	XMVECTOR camPos = skyboxM.r[3];
+	XMFLOAT3 camPosF;
+	XMStoreFloat3(&camPosF, camPos);
+	skyVSData.cameraPos = camPosF;
+
+	D3D11_MAPPED_SUBRESOURCE vsSub;
+	context->Map(skyboxConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
+	memcpy(vsSub.pData, &skyVSData, sizeof(skyVSData));
+	context->Unmap(skyboxConstantBuffer, NULL);
+
+	context->DrawIndexed(36, 0, 0);
+
 	context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
 	// SET CB AND SHADERS
@@ -762,9 +902,6 @@ bool DEMO_APP::Run()
 	// END LIGHT UPDATES //
 	///////////////////////
 
-	UINT strides = sizeof(SIMPLE_VERTEX);
-	UINT offsets = 0;
-	context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	VS_BUFFER_DATA vsData;
 	vsData.view = viewM;
@@ -777,8 +914,6 @@ bool DEMO_APP::Run()
 	// LOOP THRU ARRAYS AND DRAW =)
 	for (int i = 0; i < currentIndex; i++)
 	{
-		if (i == currentIndex-1)
-			context->PSSetShader(skyboxPS, 0, 0);
 		context->IASetVertexBuffers(0, 1, &vertexBuffers[i], &strides, &offsets);
 		context->IASetIndexBuffer(indexBuffers[i], DXGI_FORMAT_R16_UINT, 0);
 		context->PSSetShaderResources(0, 1, &textureRVs[i]);
@@ -786,8 +921,6 @@ bool DEMO_APP::Run()
 
 		// update vertex shader with new info
 		vsData.world = worldMatrices[i];
-		if (i == currentIndex - 1)
-			vsData.world = skyboxM;
 		D3D11_MAPPED_SUBRESOURCE vsSub;
 		context->Map(vertexConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
 		memcpy(vsSub.pData, &vsData, sizeof(vsData));
@@ -799,21 +932,34 @@ bool DEMO_APP::Run()
 	/*
 	// swap raster state for skybox
 	device->CreateRasterizerState(&skyboxRDesc, &rState);
-	
-	// get ready to draw skybox...
-	context->IASetVertexBuffers(0, 1, &vertexBuffers[currentIndex], &strides, &offsets);
-	context->IASetIndexBuffer(indexBuffers[currentIndex], DXGI_FORMAT_R16_UINT, 0);
-	context->PSSetShaderResources(0, 1, &textureRVs[currentIndex]);
-	context->PSSetSamplers(0, 1, &textureSamplers[currentIndex]);
 
-	vsData.world = worldMatrices[currentIndex];
-	D3D11_MAPPED_SUBRESOURCE vsSub;
-	context->Map(vertexConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
-	memcpy(vsSub.pData, &vsData, sizeof(vsData));
-	context->Unmap(vertexConstantBuffer, NULL);
-
-	context->DrawIndexed(numIndices[currentIndex], 0, 0);
+	is this needed? ^
 	*/
+	// get ready to draw skybox...
+	//context->VSSetShader(skyboxVS, 0, 0);
+	//context->PSSetShader(skyboxPS, 0, 0);
+	//context->VSSetConstantBuffers(0, 1, &skyboxConstantBuffer);
+	//context->IASetVertexBuffers(0, 1, &skyboxVBuffer, &strides, &offsets);
+	//context->IASetIndexBuffer(skyboxIBuffer, DXGI_FORMAT_R16_UINT, 0);
+	//context->PSSetShaderResources(0, 1, &skyboxRV);
+	//context->PSSetSamplers(0, 1, &skyboxSampler);
+
+	//SKYBOX_VS_DATA skyVSData;
+	//skyVSData.world = skyboxM;
+	//skyVSData.view = viewM;
+	//skyVSData.proj = projM;
+	//XMVECTOR camPos = skyboxM.r[3];
+	//XMFLOAT3 camPosF;
+	//XMStoreFloat3(&camPosF, camPos);
+	//skyVSData.cameraPos = camPosF;
+
+	//D3D11_MAPPED_SUBRESOURCE vsSub;
+	//context->Map(skyboxConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
+	//memcpy(vsSub.pData, &skyVSData, sizeof(skyVSData));
+	//context->Unmap(skyboxConstantBuffer, NULL);
+
+	//context->DrawIndexed(36, 0, 0);
+	
 	
 
 	swap->Present(0, 0);
@@ -835,7 +981,6 @@ bool DEMO_APP::ShutDown()
 	inputLayout->Release();
 	vs->Release();
 	ps->Release();
-	skyboxPS->Release();
 	depthStencil->Release();
 	depthStencilView->Release();
 
@@ -849,6 +994,15 @@ bool DEMO_APP::ShutDown()
 
 	pixelConstantBuffer->Release();
 	vertexConstantBuffer->Release();
+
+	// release skybox stuff
+	skyboxPS->Release();
+	skyboxVS->Release();
+	skyboxVBuffer->Release();
+	skyboxIBuffer->Release();
+	skyboxRV->Release();
+	skyboxSampler->Release();
+	skyboxConstantBuffer->Release();
 
 
 //	rState->Release();
@@ -980,16 +1134,19 @@ bool DEMO_APP::MoveCamera()
 
 	// update skybox pos to camera pos
 	XMVECTOR offset = worldViewM.r[3];
+	/*
 	XMFLOAT4 cameraPosition;
 	XMStoreFloat4(&cameraPosition, offset);
 	XMMATRIX skyboxT = XMMatrixTranslation(cameraPosition.x, cameraPosition.y, cameraPosition.z);
 	skyboxM = XMMatrixScaling((float)SKYBOX_SCALE, (float)SKYBOX_SCALE, (float)SKYBOX_SCALE) * skyboxT * XMMatrixIdentity();
+	*/
+	skyboxM.r[3] = offset;
 
 	//update proj matrix with new FOV
 	DXGI_SWAP_CHAIN_DESC current;
 	swap->GetDesc(&current);
 	
-	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), (float)current.BufferDesc.Width / (float)current.BufferDesc.Height, 0.1f, 10000.0f);
+	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), (float)current.BufferDesc.Width / (float)current.BufferDesc.Height, 0.1f, 100.0f);
 
 	prev = cursorPos;
 	return true;

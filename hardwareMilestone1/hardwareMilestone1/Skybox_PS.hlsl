@@ -1,12 +1,10 @@
-Texture2D tex : register(t0);
+TextureCube tex : register(t0);
 SamplerState sampl : register(s0);
 
 struct OUTPUT_VERTEX
 {
-	float2 texOut : TEXCOORD0;
-	float4 projectedCoordinate : SV_POSITION;
-	float4 worldPos : WORLDPOS;
-	float3 norm : NORMAL;
+	float3 texOut : TEXCOORD0;
+	float4 coordinate : SV_POSITION;
 };
 
 
