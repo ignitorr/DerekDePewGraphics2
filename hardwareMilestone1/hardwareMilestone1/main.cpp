@@ -779,6 +779,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	LoadMeshFromHeader(penguin_data, penguin_indicies, ARRAYSIZE(penguin_data), ARRAYSIZE(penguin_indicies), L"peng.dds");
 
 	CreateIndexedCube(0.5f, L"barrel.dds");
+
 	//////////////////////
 	// END MESH LOADING //
 	//////////////////////
