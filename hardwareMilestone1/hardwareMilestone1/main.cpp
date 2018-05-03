@@ -114,7 +114,9 @@ class DEMO_APP
 	ID3D11ShaderResourceView	*instanceTextureRVs[INSTANCE_MESH_COUNT];
 	ID3D11SamplerState			*instanceTextureSamplers[INSTANCE_MESH_COUNT];
 	unsigned int				instanceCount[INSTANCE_MESH_COUNT];
-	ID3D11Buffer				*instanceVConstantBuffer;
+	XMMATRIX					instanceMatrices[INSTANCE_MESH_COUNT];
+	//ID3D11Buffer				*instanceVConstantBuffer;
+
 
 	XMMATRIX					viewM;
 	XMMATRIX					projM;
@@ -616,28 +618,10 @@ bool DEMO_APP::CreateInstancedCube(float scale, const wchar_t *texturePath, unsi
 
 	};
 
-	D3D11_BUFFER_DESC headerBD;
-	ZeroMemory(&headerBD, sizeof(headerBD));
-	headerBD.Usage = D3D11_USAGE_IMMUTABLE;
-	headerBD.ByteWidth = sizeof(SIMPLE_VERTEX) * ARRAYSIZE(cube);
-	headerBD.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	headerBD.CPUAccessFlags = NULL;
+	instanceNumVertices[currentInstanceIndex] = ARRAYSIZE(cube);
+	instanceNumIndices[currentInstanceIndex] = ARRAYSIZE(cubeInd);
 
-	D3D11_SUBRESOURCE_DATA headerBufferData;
-	ZeroMemory(&headerBufferData, sizeof(headerBufferData));
-	headerBufferData.pSysMem = cube;
-	//device->CreateBuffer(&headerBD, &headerBufferData, &vertexBuffers[currentIndex]);
-	device->CreateBuffer(&headerBD, &headerBufferData, &instanceVertexBuffers[currentInstanceIndex]);
-	// create index buffer
-	headerBD.Usage = D3D11_USAGE_IMMUTABLE;
-	headerBD.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	headerBD.CPUAccessFlags = NULL;
-	headerBD.ByteWidth = sizeof(short) * ARRAYSIZE(cubeInd);
-
-	headerBufferData.pSysMem = cubeInd;
-	//device->CreateBuffer(&headerBD, &headerBufferData, &indexBuffers[currentIndex]);
-	device->CreateBuffer(&headerBD, &headerBufferData, &instanceIndexBuffers[currentInstanceIndex]);
-	//LoadBuffers(cube, cubeInd, ARRAYSIZE(cube), ARRAYSIZE(cubeInd), &instanceVertexBuffers[currentInstanceIndex], &instanceIndexBuffers[currentInstanceIndex]);
+	LoadBuffers(cube, cubeInd, ARRAYSIZE(cube), ARRAYSIZE(cubeInd), &instanceVertexBuffers[currentInstanceIndex], &instanceIndexBuffers[currentInstanceIndex]);
 
 	LoadTexture(texturePath, &instanceTextureRVs[currentInstanceIndex], &instanceTextureSamplers[currentInstanceIndex]);
 
@@ -802,9 +786,10 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	worldMatrices[currentIndex] = XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixIdentity() * XMMatrixTranslation(-7.0f, 0.0f, 0.0f);
 	LoadMeshFromHeader(penguin_data, penguin_indicies, ARRAYSIZE(penguin_data), ARRAYSIZE(penguin_indicies), L"peng.dds");
 
-	CreateIndexedCube(0.5f, L"barrel.dds");
+	//CreateIndexedCube(0.5f, L"barrel.dds");
 
-	CreateInstancedCube(0.5f, L"barrel.dds", 5, XMFLOAT3(0, 0, 2));
+	instanceMatrices[currentInstanceIndex] = XMMatrixIdentity() * XMMatrixTranslation(0.0f, 3.0f, 0.0f);
+	CreateInstancedCube(0.5f, L"barrel.dds", 50, XMFLOAT3(0, 0, 2));
 
 	//////////////////////
 	// END MESH LOADING //
@@ -994,7 +979,7 @@ bool DEMO_APP::Run()
 
 		context->DrawIndexed(numIndices[i], 0, 0);
 	}
-	/*
+	
 	// instancing stuff...
 	for (int i = 0; i < currentInstanceIndex; i++)
 	{
@@ -1003,7 +988,7 @@ bool DEMO_APP::Run()
 		context->PSSetShaderResources(0, 1, &instanceTextureRVs[i]);
 		context->PSSetSamplers(0, 1, &instanceTextureSamplers[i]);
 
-		vsData.world = XMMatrixIdentity();
+		vsData.world = instanceMatrices[i];
 		D3D11_MAPPED_SUBRESOURCE vsSub;
 		context->Map(vertexConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
 		memcpy(vsSub.pData, &vsData, sizeof(vsData));
@@ -1012,8 +997,8 @@ bool DEMO_APP::Run()
 		context->DrawIndexedInstanced(instanceNumIndices[i], instanceCount[i], 0, 0, 0);
 
 	}
-	*/
-	context->DrawIndexedInstanced(numIndices[currentIndex - 1], 6, 0, 0, 0);
+	
+	//context->DrawIndexedInstanced(numIndices[currentIndex - 1], 6, 0, 0, 0);
 
 	swap->Present(0, 0);
 	return true;
