@@ -42,6 +42,7 @@ using namespace DirectX;
 #define BACKBUFFER_HEIGHT	800
 
 #define MESH_COUNT 10
+#define INSTANCE_MESH_COUNT 10
 #define D_LIGHTS 1
 #define P_LIGHTS 1
 #define S_LIGHTS 1
@@ -88,20 +89,32 @@ class DEMO_APP
 
 	// END SKYBOX
 
-
+	///////////////////////
+	// GENERAL MESH DATA //
+	///////////////////////
 	unsigned int				currentIndex = 0; // every mesh created will +1 this, used for indexing when adding to the arrays
 	ID3D11Buffer				*vertexBuffers[MESH_COUNT]; // create array of vertexBuffers. if all arent used thats okay
 	ID3D11Buffer				*indexBuffers[MESH_COUNT];
 	unsigned int				numVertices[MESH_COUNT]; // store number of verts/indices for easy draw calls :)
 	unsigned int				numIndices[MESH_COUNT];
-
 	ID3D11ShaderResourceView	*textureRVs[MESH_COUNT];
 	ID3D11SamplerState			*textureSamplers[MESH_COUNT];
-
 	XMMATRIX					worldMatrices[MESH_COUNT]; // store matrices for each object.  
-	
 	ID3D11Buffer				*pixelConstantBuffer;
 	ID3D11Buffer				*vertexConstantBuffer;
+
+	/////////////////////////
+	// INSTANCED MESH DATA //
+	/////////////////////////
+	unsigned int				currentInstanceIndex = 0;
+	ID3D11Buffer				*instanceVertexBuffers[INSTANCE_MESH_COUNT];
+	ID3D11Buffer				*instanceIndexBuffers[INSTANCE_MESH_COUNT];
+	unsigned int				instanceNumVertices[INSTANCE_MESH_COUNT];
+	unsigned int				instanceNumIndices[INSTANCE_MESH_COUNT];
+	ID3D11ShaderResourceView	*instanceTextureRVs[INSTANCE_MESH_COUNT];
+	ID3D11SamplerState			*instanceTextureSamplers[INSTANCE_MESH_COUNT];
+	unsigned int				instanceCount[INSTANCE_MESH_COUNT];
+	ID3D11Buffer				*instanceVConstantBuffer;
 
 	XMMATRIX					viewM;
 	XMMATRIX					projM;
@@ -188,12 +201,13 @@ class DEMO_APP
 		XMFLOAT3 normal;
 	};
 
-	bool LoadBuffers(SIMPLE_VERTEX verts[], short indices[], unsigned int numVerts, unsigned int numIndices);
-	bool LoadTexture(const wchar_t *texturePath);
+	bool LoadBuffers(SIMPLE_VERTEX verts[], short indices[], unsigned int numVerts, unsigned int numInds, ID3D11Buffer **vertBuffer, ID3D11Buffer **indBuffer);
+	bool LoadTexture(const wchar_t *texturePath, ID3D11ShaderResourceView **textureRV, ID3D11SamplerState **textureSampler);
 	bool LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int indices[], unsigned int numVerts, unsigned int numInd, const wchar_t *texturePath);
 	bool LoadOBJ(const char *filePath, const wchar_t *texturePath);
 	bool CreateIndexedCube(float scale, const wchar_t *texturePath);
 	bool CreateSkybox(const wchar_t *texturePath);
+	bool CreateInstancedCube(float scale, const wchar_t *texturePath, unsigned int count, XMFLOAT3 offset);
 public:
 	DEMO_APP(HINSTANCE hinst, WNDPROC proc);
 
@@ -212,7 +226,7 @@ public:
 // Partner function for model creation.				    
 // All mesh creation functions call this.			    
 //////////////////////////////////////////////////////////
-bool DEMO_APP::LoadBuffers(SIMPLE_VERTEX verts[], short indices[], unsigned int numVerts, unsigned int numInds)
+bool DEMO_APP::LoadBuffers(SIMPLE_VERTEX verts[], short indices[], unsigned int numVerts, unsigned int numInds, ID3D11Buffer **vertBuffer, ID3D11Buffer **indBuffer)
 {
 	// create vertex buffer
 	D3D11_BUFFER_DESC headerBD;
@@ -225,8 +239,8 @@ bool DEMO_APP::LoadBuffers(SIMPLE_VERTEX verts[], short indices[], unsigned int 
 	D3D11_SUBRESOURCE_DATA headerBufferData;
 	ZeroMemory(&headerBufferData, sizeof(headerBufferData));
 	headerBufferData.pSysMem = verts;
-	device->CreateBuffer(&headerBD, &headerBufferData, &vertexBuffers[currentIndex]);
-
+	//device->CreateBuffer(&headerBD, &headerBufferData, &vertexBuffers[currentIndex]);
+	device->CreateBuffer(&headerBD, &headerBufferData, vertBuffer);
 	// create index buffer
 	headerBD.Usage = D3D11_USAGE_IMMUTABLE;
 	headerBD.BindFlags = D3D11_BIND_INDEX_BUFFER;
@@ -234,7 +248,8 @@ bool DEMO_APP::LoadBuffers(SIMPLE_VERTEX verts[], short indices[], unsigned int 
 	headerBD.ByteWidth = sizeof(short) * numInds;
 
 	headerBufferData.pSysMem = indices;
-	device->CreateBuffer(&headerBD, &headerBufferData, &indexBuffers[currentIndex]);
+	//device->CreateBuffer(&headerBD, &headerBufferData, &indexBuffers[currentIndex]);
+	device->CreateBuffer(&headerBD, &headerBufferData, indBuffer);
 
 	return true;
 }
@@ -244,9 +259,9 @@ bool DEMO_APP::LoadBuffers(SIMPLE_VERTEX verts[], short indices[], unsigned int 
 // Partner function for model creation.    
 // All mesh creation functions call this.	
 ///////////////////////////////////////////
-bool DEMO_APP::LoadTexture(const wchar_t *texturePath)
+bool DEMO_APP::LoadTexture(const wchar_t *texturePath, ID3D11ShaderResourceView **textureRV, ID3D11SamplerState **textureSampler)
 {
-	CreateDDSTextureFromFile(device, texturePath, nullptr, &textureRVs[currentIndex]);
+	CreateDDSTextureFromFile(device, texturePath, nullptr, textureRV);
 	// will need to add char arg to function
 	D3D11_SAMPLER_DESC samplerDesc;
 	ZeroMemory(&samplerDesc, sizeof(samplerDesc));
@@ -257,7 +272,7 @@ bool DEMO_APP::LoadTexture(const wchar_t *texturePath)
 	samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
 	samplerDesc.MinLOD = 0;
 	samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
-	device->CreateSamplerState(&samplerDesc, &textureSamplers[currentIndex]);
+	device->CreateSamplerState(&samplerDesc, textureSampler);
 
 	return true;
 }
@@ -379,14 +394,14 @@ bool DEMO_APP::LoadOBJ(const char *filePath, const wchar_t *texturePath)
 			currentVertexIndex++;
 		}
 	}
-	LoadBuffers(meshVerts, meshIndices, normals.size(), vertIndices.size());
+	LoadBuffers(meshVerts, meshIndices, normals.size(), vertIndices.size(), &vertexBuffers[currentIndex], &indexBuffers[currentIndex]);
 
 	//update number arrays
 	numVertices[currentIndex] = normals.size();
 	numIndices[currentIndex] = vertIndices.size();
 
 	// load the model's texture
-	LoadTexture(texturePath);
+	LoadTexture(texturePath, &textureRVs[currentIndex], &textureSamplers[currentIndex]);
 
 	currentIndex += 1;
 	return true;
@@ -410,14 +425,14 @@ bool DEMO_APP::LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int ind
 		meshIndices[i] = indices[i];
 	}
 
-	LoadBuffers(meshVerts, meshIndices, numVerts, numInd);
+	LoadBuffers(meshVerts, meshIndices, numVerts, numInd, &vertexBuffers[currentIndex], &indexBuffers[currentIndex]);
 
 	//update number arrays
 	numVertices[currentIndex] = numVerts;
 	numIndices[currentIndex] = numInd;
 
 	// load the model's texture
-	LoadTexture(texturePath);
+	LoadTexture(texturePath, &textureRVs[currentIndex], &textureSamplers[currentIndex]);
 
 	// update currentIndex before exiting
 	currentIndex += 1;
@@ -475,14 +490,14 @@ bool DEMO_APP::CreateIndexedCube(float scale, const wchar_t *texturePath)
 
 	};
 
-	LoadBuffers(cube, cubeInd, ARRAYSIZE(cube), ARRAYSIZE(cubeInd));
+	LoadBuffers(cube, cubeInd, ARRAYSIZE(cube), ARRAYSIZE(cubeInd), &vertexBuffers[currentIndex], &indexBuffers[currentIndex]);
 
 	// update number arrays
 	numVertices[currentIndex] = ARRAYSIZE(cube);
 	numIndices[currentIndex] = ARRAYSIZE(cubeInd);
 
 	// load the model's texture
-	LoadTexture(texturePath);
+	LoadTexture(texturePath, &textureRVs[currentIndex], &textureSamplers[currentIndex]);
 
 	// create worldMatrix
 	worldMatrices[currentIndex] = XMMatrixScaling(scale, scale, scale) * XMMatrixIdentity();
@@ -543,40 +558,68 @@ bool DEMO_APP::CreateSkybox(const wchar_t *texturePath)
 
 	};
 
-	// create vertex buffer
-	D3D11_BUFFER_DESC headerBD;
-	ZeroMemory(&headerBD, sizeof(headerBD));
-	headerBD.Usage = D3D11_USAGE_IMMUTABLE;
-	headerBD.ByteWidth = sizeof(SIMPLE_VERTEX) * ARRAYSIZE(cube);
-	headerBD.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	headerBD.CPUAccessFlags = NULL;
+	LoadBuffers(cube, cubeInd, ARRAYSIZE(cube), ARRAYSIZE(cubeInd), &skyboxVBuffer, &skyboxIBuffer);
 
-	D3D11_SUBRESOURCE_DATA headerBufferData;
-	ZeroMemory(&headerBufferData, sizeof(headerBufferData));
-	headerBufferData.pSysMem = cube;
-	device->CreateBuffer(&headerBD, &headerBufferData, &skyboxVBuffer);
+	LoadTexture(texturePath, &skyboxRV, &skyboxSampler);
 
-	// create index buffer
-	headerBD.Usage = D3D11_USAGE_IMMUTABLE;
-	headerBD.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	headerBD.CPUAccessFlags = NULL;
-	headerBD.ByteWidth = sizeof(short) * ARRAYSIZE(cubeInd);
+	return true;
+}
 
-	headerBufferData.pSysMem = cubeInd;
-	device->CreateBuffer(&headerBD, &headerBufferData, &skyboxIBuffer);
+/////////////////////////////////////
+// Create instanced cube.
+// Basic stuff to test instancing.
+/////////////////////////////////////
+bool DEMO_APP::CreateInstancedCube(float scale, const wchar_t *texturePath, unsigned int count, XMFLOAT3 offset)
+{
+	SIMPLE_VERTEX cube[] =
+	{
+		{ XMFLOAT3(-0.5f, 0.5f,-0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
+		{ XMFLOAT3(0.5f, 0.5f,-0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
+		{ XMFLOAT3(0.5f,0.5f,0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
+		{ XMFLOAT3(-0.5f,0.5f,0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
 
-	CreateDDSTextureFromFile(device, texturePath, nullptr, &skyboxRV);
+		{ XMFLOAT3(-0.5f, -0.5f, -0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
+		{ XMFLOAT3(0.5f, -0.5f, -0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
+		{ XMFLOAT3(0.5f,-0.5f, 0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
+		{ XMFLOAT3(-0.5f,-0.5f, 0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
 
-	D3D11_SAMPLER_DESC samplerDesc;
-	ZeroMemory(&samplerDesc, sizeof(samplerDesc));
-	samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-	samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-	samplerDesc.MinLOD = 0;
-	samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
-	device->CreateSamplerState(&samplerDesc, &skyboxSampler);
+		{ XMFLOAT3(-0.5f,-0.5f, 0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
+		{ XMFLOAT3(-0.5f,-0.5f, -0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
+		{ XMFLOAT3(-0.5f,0.5f, -0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
+		{ XMFLOAT3(-0.5f,0.5f, 0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
+
+		{ XMFLOAT3(0.5f, -0.5f, 0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
+		{ XMFLOAT3(0.5f, -0.5f, -0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
+		{ XMFLOAT3(0.5f, 0.5f, -0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
+		{ XMFLOAT3(0.5f, 0.5f, 0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
+
+		{ XMFLOAT3(-0.5f, -0.5f, -0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
+		{ XMFLOAT3(0.5f, -0.5f, -0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
+		{ XMFLOAT3(0.5f, 0.5f, -0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
+		{ XMFLOAT3(-0.5f, 0.5f, -0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
+
+		{ XMFLOAT3(-0.5f, -0.5f, 0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
+		{ XMFLOAT3(0.5f, -0.5f, 0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
+		{ XMFLOAT3(0.5f, 0.5f, 0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
+		{ XMFLOAT3(-0.5f, 0.5f, 0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
+
+	};
+	short cubeInd[] =
+	{
+
+		3,1,0, 2,1,3,
+		6,4,5, 7,4,6,
+		11,9,8, 10,9,11,
+		14,12,13, 15,12,14,
+		19,17,16, 18,17,19,
+		22,20,21, 23,20,22
+
+	};
+	LoadBuffers(cube, cubeInd, ARRAYSIZE(cube), ARRAYSIZE(cubeInd), &instanceVertexBuffers[currentInstanceIndex], &instanceIndexBuffers[currentInstanceIndex]);
+
+	LoadTexture(texturePath, &instanceTextureRVs[currentInstanceIndex], &instanceTextureSamplers[currentInstanceIndex]);
+
+	currentInstanceIndex++;
 
 	return true;
 }
@@ -791,10 +834,6 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	device->CreateRasterizerState(&regularRDesc, &rState);
 	*/
-
-
-
-	//CreateIndexedCube((float)SKYBOX_SCALE, L"skyBox.dds");
 	CreateSkybox(L"skyBox.dds");
 	skyboxM = XMMatrixIdentity() * XMMatrixScaling((float)SKYBOX_SCALE, (float)SKYBOX_SCALE, (float)SKYBOX_SCALE);
 
@@ -828,7 +867,7 @@ bool DEMO_APP::Run()
 	// CLEAR DEPTH TO 1.0
 	context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
-	// SKYBOX
+	// DRAW SKYBOX FIRST
 	UINT strides = sizeof(SIMPLE_VERTEX);
 	UINT offsets = 0;
 	context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -856,6 +895,7 @@ bool DEMO_APP::Run()
 
 	context->DrawIndexed(36, 0, 0);
 
+	// RE-CLEAR DEPTH BUFFER
 	context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
 	// SET CB AND SHADERS
@@ -902,7 +942,6 @@ bool DEMO_APP::Run()
 	// END LIGHT UPDATES //
 	///////////////////////
 
-
 	VS_BUFFER_DATA vsData;
 	vsData.view = viewM;
 	vsData.proj = projM;
@@ -911,7 +950,7 @@ bool DEMO_APP::Run()
 	context->Map(pixelConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &psSub);
 	memcpy(psSub.pData, &psData, sizeof(psData));
 	context->Unmap(pixelConstantBuffer, NULL);
-	// LOOP THRU ARRAYS AND DRAW =)
+	// LOOP THRU ARRAYS AND DRAW
 	for (int i = 0; i < currentIndex; i++)
 	{
 		context->IASetVertexBuffers(0, 1, &vertexBuffers[i], &strides, &offsets);
@@ -929,39 +968,11 @@ bool DEMO_APP::Run()
 		context->DrawIndexed(numIndices[i], 0, 0);
 	}
 
-	/*
-	// swap raster state for skybox
-	device->CreateRasterizerState(&skyboxRDesc, &rState);
+	// instancing stuff...
+	for (int i = 0; i < currentInstanceIndex; i++)
+	{
 
-	is this needed? ^
-	*/
-	// get ready to draw skybox...
-	//context->VSSetShader(skyboxVS, 0, 0);
-	//context->PSSetShader(skyboxPS, 0, 0);
-	//context->VSSetConstantBuffers(0, 1, &skyboxConstantBuffer);
-	//context->IASetVertexBuffers(0, 1, &skyboxVBuffer, &strides, &offsets);
-	//context->IASetIndexBuffer(skyboxIBuffer, DXGI_FORMAT_R16_UINT, 0);
-	//context->PSSetShaderResources(0, 1, &skyboxRV);
-	//context->PSSetSamplers(0, 1, &skyboxSampler);
-
-	//SKYBOX_VS_DATA skyVSData;
-	//skyVSData.world = skyboxM;
-	//skyVSData.view = viewM;
-	//skyVSData.proj = projM;
-	//XMVECTOR camPos = skyboxM.r[3];
-	//XMFLOAT3 camPosF;
-	//XMStoreFloat3(&camPosF, camPos);
-	//skyVSData.cameraPos = camPosF;
-
-	//D3D11_MAPPED_SUBRESOURCE vsSub;
-	//context->Map(skyboxConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
-	//memcpy(vsSub.pData, &skyVSData, sizeof(skyVSData));
-	//context->Unmap(skyboxConstantBuffer, NULL);
-
-	//context->DrawIndexed(36, 0, 0);
-	
-	
-
+	}
 	swap->Present(0, 0);
 	return true;
 }
@@ -1003,9 +1014,17 @@ bool DEMO_APP::ShutDown()
 	skyboxRV->Release();
 	skyboxSampler->Release();
 	skyboxConstantBuffer->Release();
-
-
 //	rState->Release();
+
+	// release instancing data
+	for (int i = 0; i < currentInstanceIndex; i++) //only loop to current index, otherwise out of bounds
+	{
+		instanceVertexBuffers[i]->Release();
+		instanceIndexBuffers[i]->Release();
+		instanceTextureRVs[i]->Release();
+		instanceTextureSamplers[i]->Release();
+	}
+
 
 	UnregisterClass(L"DirectXApplication", application);
 	return true;
@@ -1063,7 +1082,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 bool DEMO_APP::MoveCamera()
 {
 	// speed modifier
-	float speed = 3.0f;
+	float speed = 6.0f;
 
 	unsigned int inputs[] = { 'W', 'A', 'S', 'D', 'Q', 'E', VK_UP, VK_DOWN, VK_RBUTTON, VK_SHIFT};
 	float activeKeys[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
@@ -1146,7 +1165,7 @@ bool DEMO_APP::MoveCamera()
 	DXGI_SWAP_CHAIN_DESC current;
 	swap->GetDesc(&current);
 	
-	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), (float)current.BufferDesc.Width / (float)current.BufferDesc.Height, 0.1f, 100.0f);
+	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), (float)current.BufferDesc.Width / (float)current.BufferDesc.Height, 0.01f, 100.0f);
 
 	prev = cursorPos;
 	return true;
