@@ -29,8 +29,12 @@ OUTPUT_VERTEX main(INPUT_VERTEX fromVertexBuffer)
 	OUTPUT_VERTEX sendToRasterizer = (OUTPUT_VERTEX)0;
 	sendToRasterizer.projectedCoordinate.w = 1;
 
+	uint row = fromVertexBuffer.instanceID / 10;
+	uint offset = fromVertexBuffer.instanceID % 10;
+
 	sendToRasterizer.projectedCoordinate.xyz = fromVertexBuffer.coordinate.xyz;
-	sendToRasterizer.projectedCoordinate.z += 2.0f * fromVertexBuffer.instanceID;
+	sendToRasterizer.projectedCoordinate.x -= 2.0f * row;
+	sendToRasterizer.projectedCoordinate.z += 2.0f * offset;
 	sendToRasterizer.projectedCoordinate = mul(sendToRasterizer.projectedCoordinate, world);
 	sendToRasterizer.worldPos = sendToRasterizer.projectedCoordinate;
 	sendToRasterizer.projectedCoordinate = mul(sendToRasterizer.projectedCoordinate, view);

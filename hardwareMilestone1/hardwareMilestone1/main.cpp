@@ -789,7 +789,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	//CreateIndexedCube(0.5f, L"barrel.dds");
 
 	instanceMatrices[currentInstanceIndex] = XMMatrixIdentity() * XMMatrixTranslation(0.0f, 3.0f, 0.0f);
-	CreateInstancedCube(0.5f, L"barrel.dds", 50, XMFLOAT3(0, 0, 2));
+	CreateInstancedCube(0.5f, L"crate1_diffuse.dds", 250, XMFLOAT3(0, 0, 2));
 
 	//////////////////////
 	// END MESH LOADING //
