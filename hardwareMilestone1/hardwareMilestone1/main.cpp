@@ -118,6 +118,30 @@ class DEMO_APP
 	//ID3D11Buffer				*instanceVConstantBuffer;
 
 
+	//ID3D11Texture2D				*renderTargetTextureMap;
+	//ID3D11RenderTargetView		*renderTargetViewMap;
+	//ID3D11ShaderResourceView	*shaderResourceViewMap;
+	//XMMATRIX					mapView;
+	//XMMATRIX					mapProjection;
+	//ID3D11Buffer				*squareVBuffer;
+	//ID3D11Buffer				*squareIBuffer;
+	//ID3D11DepthStencilView		*rttDSV;
+	D3D11_VIEWPORT				rtViewport;
+	ID3D11RenderTargetView		*rtRTV;
+	ID3D11ShaderResourceView	*rtSRV;
+	ID3D11Texture2D				*renderTarget;
+
+	ID3D11ShaderResourceView	*rtCubeSRV;
+	ID3D11SamplerState			*rtCubeSampler;
+
+	ID3D11Buffer				*rtVBuffer;
+	ID3D11Buffer				*rtIBuffer;
+
+	XMMATRIX					rtWorld;
+	XMMATRIX					rtView;
+	XMMATRIX					rtProj;
+	// end RTT
+
 	XMMATRIX					viewM;
 	XMMATRIX					projM;
 
@@ -705,7 +729,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	viewport.TopLeftX = 0;
 	viewport.TopLeftY = 0;
 
-	context->RSSetViewports(1, &viewport);
+	//context->RSSetViewports(1, &viewport);
 
 	// CREATE DEPTH BUFFER
 	D3D11_TEXTURE2D_DESC depthDesc;
@@ -738,7 +762,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	HRESULT rest = device->CreateVertexShader(Skybox_VS, sizeof(Skybox_VS), NULL, &skyboxVS);
 	device->CreatePixelShader(Skybox_PS, sizeof(Skybox_PS), NULL, &skyboxPS);
 
-	
+
 
 	// CREATE INPUT LAYOUT
 	D3D11_INPUT_ELEMENT_DESC vLayout[] =
@@ -789,7 +813,10 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	//CreateIndexedCube(0.5f, L"barrel.dds");
 
 	instanceMatrices[currentInstanceIndex] = XMMatrixIdentity() * XMMatrixTranslation(0.0f, 3.0f, 0.0f);
-	CreateInstancedCube(0.5f, L"crate1_diffuse.dds", 250, XMFLOAT3(0, 0, 2));
+	CreateInstancedCube(0.5f, L"crate1_diffuse.dds", 2500, XMFLOAT3(0, 0, 2));
+
+	worldMatrices[currentIndex] = XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixIdentity() * XMMatrixTranslation(5.0f, 0.0f, 0.0f);
+	LoadOBJ("spiral.obj", L"barrel.dds ");
 
 	//////////////////////
 	// END MESH LOADING //
@@ -852,6 +879,155 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	cbDesc.ByteWidth = sizeof(SKYBOX_VS_DATA);
 	device->CreateBuffer(&cbDesc, NULL, &skyboxConstantBuffer);
 
+
+	/*
+	
+	// RENDER TO TEXTURE STUFF //
+	D3D11_TEXTURE2D_DESC rtDesc;
+	D3D11_RENDER_TARGET_VIEW_DESC rtRTVDesc;
+	D3D11_SHADER_RESOURCE_VIEW_DESC rtSRVDesc;
+
+	ZeroMemory(&rtDesc, sizeof(rtDesc));
+	rtDesc.Width = BACKBUFFER_WIDTH / 2;
+	rtDesc.Height = BACKBUFFER_HEIGHT / 2;
+	rtDesc.MipLevels = 1;
+	rtDesc.ArraySize = 1;
+	rtDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+	rtDesc.SampleDesc.Count = 1;
+	rtDesc.Usage = D3D11_USAGE_DEFAULT;
+	rtDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+	rtDesc.CPUAccessFlags = 0;
+	rtDesc.MiscFlags = 0;
+	device->CreateTexture2D(&rtDesc, NULL, &renderTargetTextureMap);
+
+	//ZeroMemory(&rtRTVDesc, sizeof(rtRTVDesc));
+	rtRTVDesc.Format = rtDesc.Format;
+	rtRTVDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+	rtRTVDesc.Texture2D.MipSlice = 0;
+	device->CreateRenderTargetView(renderTargetTextureMap, &rtRTVDesc, &renderTargetViewMap);
+
+	//ZeroMemory(&rtSRVDesc, sizeof(rtSRVDesc));
+	rtSRVDesc.Format = rtDesc.Format;
+	rtSRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	rtSRVDesc.Texture2D.MostDetailedMip = 0;
+	rtSRVDesc.Texture2D.MipLevels = 1;
+	device->CreateShaderResourceView(renderTargetTextureMap, &rtSRVDesc, &shaderResourceViewMap);
+
+	//D3D11_DEPTH_STENCIL_VIEW_DESC viewDesc;
+	ZeroMemory(&viewDesc, sizeof(viewDesc));
+	viewDesc.Format = rtDesc.Format;
+	viewDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	viewDesc.Texture2D.MipSlice = 0;
+	device->CreateDepthStencilView(renderTargetTextureMap, &viewDesc, &rttDSV);
+
+	SIMPLE_VERTEX square[] = 
+	{
+		{ XMFLOAT3(-1.0f, -1.0f, 0.0f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
+		{ XMFLOAT3(1.0f, -1.0f, 0.0f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
+		{ XMFLOAT3(1.0f, 1.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
+		{ XMFLOAT3(-1.0f, 1.0f, 0.0f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
+	};
+	short squareInd[] =
+	{
+		3, 2, 1,
+		3, 1, 0
+	};
+	LoadBuffers(square, squareInd, 4, 6, &squareVBuffer, &squareIBuffer);
+
+	mapProjection = XMMatrixOrthographicLH(BACKBUFFER_WIDTH, BACKBUFFER_HEIGHT, 1.0f, 1000.0f);
+	*/
+
+	// render to texture 2.0
+	rtViewport.Width = 512;
+	rtViewport.Height = 512;
+	rtViewport.MinDepth = 0.0f;
+	rtViewport.MaxDepth = 1.0f;
+	rtViewport.TopLeftX = 0;
+	rtViewport.TopLeftY = 0;
+
+	D3D11_TEXTURE2D_DESC rtDesc;
+	D3D11_RENDER_TARGET_VIEW_DESC rtRTVDesc;
+	D3D11_SHADER_RESOURCE_VIEW_DESC rtSRVDesc;
+
+	ZeroMemory(&rtDesc, sizeof(rtDesc));
+	rtDesc.Width = 512;
+	rtDesc.Height = 512;
+	rtDesc.MipLevels = 1;
+	rtDesc.ArraySize = 1;
+	rtDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+	rtDesc.SampleDesc.Count = 1;
+	rtDesc.Usage = D3D11_USAGE_DEFAULT;
+	rtDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+	rtDesc.CPUAccessFlags = 0;
+	rtDesc.MiscFlags = D3D11_RESOURCE_MISC_GENERATE_MIPS;
+	device->CreateTexture2D(&rtDesc, NULL, &renderTarget);
+
+	//ZeroMemory(&rtRTVDesc, sizeof(rtRTVDesc));
+	rtRTVDesc.Format = rtDesc.Format;
+	rtRTVDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+	rtRTVDesc.Texture2D.MipSlice = 0;
+	device->CreateRenderTargetView(renderTarget, &rtRTVDesc, &rtRTV);
+
+	//ZeroMemory(&rtSRVDesc, sizeof(rtSRVDesc));
+	rtSRVDesc.Format = rtDesc.Format;
+	rtSRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	rtSRVDesc.Texture2D.MostDetailedMip = 0;
+	rtSRVDesc.Texture2D.MipLevels = 1;
+	device->CreateShaderResourceView(renderTarget, &rtSRVDesc, &rtSRV);
+
+	rtWorld = XMMatrixIdentity();
+	rtView = viewM;
+	rtProj = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), 512 / (FLOAT)512, 0.01f, 100.0f);
+
+	SIMPLE_VERTEX cube[] =
+	{
+		{ XMFLOAT3(-0.5f, 0.5f,-0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
+		{ XMFLOAT3(0.5f, 0.5f,-0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
+		{ XMFLOAT3(0.5f,0.5f,0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
+		{ XMFLOAT3(-0.5f,0.5f,0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
+
+		{ XMFLOAT3(-0.5f, -0.5f, -0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
+		{ XMFLOAT3(0.5f, -0.5f, -0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
+		{ XMFLOAT3(0.5f,-0.5f, 0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
+		{ XMFLOAT3(-0.5f,-0.5f, 0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
+
+		{ XMFLOAT3(-0.5f,-0.5f, 0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
+		{ XMFLOAT3(-0.5f,-0.5f, -0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
+		{ XMFLOAT3(-0.5f,0.5f, -0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
+		{ XMFLOAT3(-0.5f,0.5f, 0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
+
+		{ XMFLOAT3(0.5f, -0.5f, 0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
+		{ XMFLOAT3(0.5f, -0.5f, -0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
+		{ XMFLOAT3(0.5f, 0.5f, -0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
+		{ XMFLOAT3(0.5f, 0.5f, 0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
+
+		{ XMFLOAT3(-0.5f, -0.5f, -0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
+		{ XMFLOAT3(0.5f, -0.5f, -0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
+		{ XMFLOAT3(0.5f, 0.5f, -0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
+		{ XMFLOAT3(-0.5f, 0.5f, -0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
+
+		{ XMFLOAT3(-0.5f, -0.5f, 0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
+		{ XMFLOAT3(0.5f, -0.5f, 0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
+		{ XMFLOAT3(0.5f, 0.5f, 0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
+		{ XMFLOAT3(-0.5f, 0.5f, 0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
+
+	};
+	short cubeInd[] =
+	{
+
+		3,1,0, 2,1,3,
+		6,4,5, 7,4,6,
+		11,9,8, 10,9,11,
+		14,12,13, 15,12,14,
+		19,17,16, 18,17,19,
+		22,20,21, 23,20,22
+
+	};
+	LoadBuffers(cube, cubeInd, ARRAYSIZE(cube), ARRAYSIZE(cubeInd), &rtVBuffer, &rtIBuffer);
+	LoadTexture(L"crate1_diffuse.dds", &rtCubeSRV, &rtCubeSampler);
+
+	// create cube in actual viewport that shows texture
+	//LoadBuffers(cube, cubeInd, ARRAYSIZE(cube), ARRAYSIZE(cubeInd), &exampleVBuffer, &exampleIBuffer);
 }
 
 //************************************************************
@@ -860,14 +1036,11 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 bool DEMO_APP::Run()
 {
-
-	// reset raster state
-//	device->CreateRasterizerState(&regularRDesc, &rState);
-	// for skybox
-
 	timer.Signal();
 	MoveCamera();
+	context->RSSetViewports(1, &viewport);
 	context->OMSetRenderTargets(1, &rtv, depthStencilView);
+
 
 	// CLEAR RTV TO BLUE
 	FLOAT color[4] = { 0.0, 0.0f, 0.4f, 1.0f };
@@ -954,6 +1127,39 @@ bool DEMO_APP::Run()
 	// END LIGHT UPDATES //
 	///////////////////////
 
+	///////////////////////////////////////////////
+	// RENDER TO TEXTURE STUFF BEFORE MAIN SCENE //
+	///////////////////////////////////////////////
+
+	context->RSSetViewports(1, &rtViewport);
+	context->OMSetRenderTargets(1, &rtRTV, NULL);
+
+	FLOAT white[4] = { 1.0, 1.0f, 1.0f, 1.0f };
+	context->ClearRenderTargetView(rtRTV, white);
+
+	context->IASetVertexBuffers(0, 1, &rtVBuffer, &strides, &offsets);
+	context->IASetIndexBuffer(rtIBuffer, DXGI_FORMAT_R16_UINT, 0);
+	context->PSSetShaderResources(0, 1, &rtCubeSRV);
+	context->PSSetSamplers(0, 1, &rtCubeSampler);
+
+
+	VS_BUFFER_DATA vData;
+	vData.world = XMMatrixTranslation(0, 1.0f, 0) * orbitM;
+	vData.view = rtView;
+	vData.proj = rtProj;
+	context->Map(vertexConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
+	memcpy(vsSub.pData, &vData, sizeof(vData));
+	context->Unmap(vertexConstantBuffer, NULL);
+
+	context->DrawIndexed(36, 0, 0);
+
+
+	///////////////////////////
+	// END RENDER TO TEXTURE //
+	///////////////////////////
+
+	context->RSSetViewports(1, &viewport);
+	context->OMSetRenderTargets(1, &rtv, depthStencilView);
 	VS_BUFFER_DATA vsData;
 	vsData.view = viewM;
 	vsData.proj = projM;
@@ -997,7 +1203,94 @@ bool DEMO_APP::Run()
 		context->DrawIndexedInstanced(instanceNumIndices[i], instanceCount[i], 0, 0, 0);
 
 	}
+
+	// draw last cube that uses RTT
+	context->IASetVertexBuffers(0, 1, &rtVBuffer, &strides, &offsets);
+	context->IASetIndexBuffer(rtIBuffer, DXGI_FORMAT_R16_UINT, 0);
+	context->PSSetShaderResources(0, 1, &rtSRV);
+	context->PSSetSamplers(0, 1, &rtCubeSampler);
+
+	vData.world = XMMatrixIdentity();
+	vData.view = viewM;
+	vData.proj = projM;
+
+	context->Map(vertexConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
+	memcpy(vsSub.pData, &vData, sizeof(vData));
+	context->Unmap(vertexConstantBuffer, NULL);
+
+	context->DrawIndexed(36, 0, 0);
 	
+
+	/*
+	
+	// RENDER TO TEXTURE STUFF
+	// UPDATE CAMERA POS FOR RTT
+	XMVECTOR currentCamPos = XMMatrixInverse(0, viewM).r[3];
+	XMVECTOR mapCamPos = XMVectorSetY(currentCamPos, XMVectorGetY(currentCamPos) + 10.0f);
+	XMVECTOR mapCamTarget = currentCamPos;
+	XMVECTOR mapCamUp = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+
+	mapView = XMMatrixLookAtLH(mapCamPos, mapCamTarget, mapCamUp);
+	
+	context->OMSetRenderTargets(1, &renderTargetViewMap, depthStencilView);
+	context->ClearRenderTargetView(renderTargetViewMap, color);
+
+	context->VSSetConstantBuffers(0, 1, &vertexConstantBuffer);
+	context->PSSetConstantBuffers(0, 1, &pixelConstantBuffer);
+	context->VSSetShader(vs, 0, 0);
+	context->PSSetShader(ps, 0, 0);
+	for (int i = 0; i < currentIndex; i++)
+	{
+		context->IASetVertexBuffers(0, 1, &vertexBuffers[i], &strides, &offsets);
+		context->IASetIndexBuffer(indexBuffers[i], DXGI_FORMAT_R16_UINT, 0);
+		context->PSSetShaderResources(0, 1, &textureRVs[i]);
+		context->PSSetSamplers(0, 1, &textureSamplers[i]);
+
+		// update vertex shader with new info
+		vsData.world = worldMatrices[i];
+		vsData.view = mapView;
+		vsData.proj = mapProjection;
+		D3D11_MAPPED_SUBRESOURCE vsSub;
+		context->Map(vertexConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
+		memcpy(vsSub.pData, &vsData, sizeof(vsData));
+		context->Unmap(vertexConstantBuffer, NULL);
+
+		context->DrawIndexed(numIndices[i], 0, 0);
+	}
+	for (int i = 0; i < currentInstanceIndex; i++)
+	{
+		context->IASetVertexBuffers(0, 1, &instanceVertexBuffers[i], &strides, &offsets);
+		context->IASetIndexBuffer(instanceIndexBuffers[i], DXGI_FORMAT_R16_UINT, 0);
+		context->PSSetShaderResources(0, 1, &instanceTextureRVs[i]);
+		context->PSSetSamplers(0, 1, &instanceTextureSamplers[i]);
+
+		vsData.world = instanceMatrices[i];
+		D3D11_MAPPED_SUBRESOURCE vsSub;
+		context->Map(vertexConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
+		memcpy(vsSub.pData, &vsData, sizeof(vsData));
+		context->Unmap(vertexConstantBuffer, NULL);
+
+		context->DrawIndexedInstanced(instanceNumIndices[i], instanceCount[i], 0, 0, 0);
+
+	}
+
+	context->OMSetRenderTargets(1, &rtv, depthStencilView);
+
+	context->IASetIndexBuffer(squareIBuffer, DXGI_FORMAT_R16_UINT, 0);
+	context->IASetVertexBuffers(0, 1, &squareVBuffer, &strides, &offsets);
+	context->PSSetShaderResources(0, 1, &shaderResourceViewMap);
+	//context->PSSetSamplers(0, 1, &textureSamplers[i]);
+
+	vsData.world = XMMatrixScaling(0.5f, 0.5f, 0.0f) * XMMatrixTranslation(0.5f, -0.5f, 0.0f);
+	vsData.view = mapView;
+	vsData.proj = mapProjection;
+	context->Map(vertexConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
+	memcpy(vsSub.pData, &vsData, sizeof(vsData));
+	context->Unmap(vertexConstantBuffer, NULL);
+
+	context->DrawIndexed(6, 0, 0);
+	// END RTT
+	*/
 	//context->DrawIndexedInstanced(numIndices[currentIndex - 1], 6, 0, 0, 0);
 
 	swap->Present(0, 0);
@@ -1051,6 +1344,15 @@ bool DEMO_APP::ShutDown()
 		instanceTextureRVs[i]->Release();
 		instanceTextureSamplers[i]->Release();
 	}
+
+	// release RTT data
+	rtRTV->Release();
+	rtSRV->Release();
+	rtIBuffer->Release();
+	rtVBuffer->Release();
+	renderTarget->Release();
+	rtCubeSampler->Release();
+	rtCubeSRV->Release();
 
 
 	UnregisterClass(L"DirectXApplication", application);
