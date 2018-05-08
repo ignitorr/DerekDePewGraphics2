@@ -686,7 +686,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	ShowWindow(window, SW_SHOW);
 	//********************* END WARNING ************************//
-
+	
 	// swapchain desc
 	DXGI_SWAP_CHAIN_DESC sd = {};
 	sd.BufferCount = 1;
@@ -815,8 +815,8 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	instanceMatrices[currentInstanceIndex] = XMMatrixIdentity() * XMMatrixTranslation(0.0f, 3.0f, 0.0f);
 	CreateInstancedCube(0.5f, L"crate1_diffuse.dds", 2500, XMFLOAT3(0, 0, 2));
 
-	worldMatrices[currentIndex] = XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixIdentity() * XMMatrixTranslation(5.0f, 0.0f, 0.0f);
-	LoadOBJ("spiral.obj", L"barrel.dds ");
+	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * XMMatrixTranslation(13.0f, 5.0f, 0.0f);
+	LoadOBJ("spacestation.obj", L"spacestation_diffuse.dds");
 
 	//////////////////////
 	// END MESH LOADING //
@@ -1097,7 +1097,7 @@ bool DEMO_APP::Run()
 	// SPOTLIGHT
 	XMMATRIX spinM = XMMatrixRotationX(-timer.Delta());
 	XMMATRIX dirSpin = XMMatrixRotationY(-timer.Delta());
-	XMMATRIX orbitM = XMMatrixRotationY(-time * 5);
+	XMMATRIX orbitM = XMMatrixRotationY(-time * 2);
 	XMMATRIX translateM = XMMatrixTranslation(-1.5f, 3.0f, 0.0f);
 	//worldM2 = scaleM * spinM * translateM * orbitM;
 
@@ -1210,7 +1210,7 @@ bool DEMO_APP::Run()
 	context->PSSetShaderResources(0, 1, &rtSRV);
 	context->PSSetSamplers(0, 1, &rtCubeSampler);
 
-	vData.world = XMMatrixIdentity();
+	vData.world = XMMatrixIdentity() + XMMatrixTranslation(3.0f, 0.0f, 0.0f);
 	vData.view = viewM;
 	vData.proj = projM;
 
@@ -1482,12 +1482,6 @@ bool DEMO_APP::MoveCamera()
 
 	// update skybox pos to camera pos
 	XMVECTOR offset = worldViewM.r[3];
-	/*
-	XMFLOAT4 cameraPosition;
-	XMStoreFloat4(&cameraPosition, offset);
-	XMMATRIX skyboxT = XMMatrixTranslation(cameraPosition.x, cameraPosition.y, cameraPosition.z);
-	skyboxM = XMMatrixScaling((float)SKYBOX_SCALE, (float)SKYBOX_SCALE, (float)SKYBOX_SCALE) * skyboxT * XMMatrixIdentity();
-	*/
 	skyboxM.r[3] = offset;
 
 	//update proj matrix with new FOV
@@ -1522,8 +1516,8 @@ bool DEMO_APP::ResizeWindow()
 	tempBackBuffer->Release();
 
 	//D3D11_VIEWPORT vp;
-	viewport.Width = float(current.BufferDesc.Width);
-	viewport.Height = float(current.BufferDesc.Height);
+	viewport.Width = (float)current.BufferDesc.Width;
+	viewport.Height = (float)current.BufferDesc.Height;
 	viewport.MinDepth = 0.0f;
 	viewport.MaxDepth = 1.0f;
 	viewport.TopLeftX = 0;

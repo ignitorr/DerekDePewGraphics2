@@ -64,5 +64,8 @@
     <Image Include="skyBox.dds">
       <Filter>Resource Files</Filter>
     </Image>
+    <Image Include="spacestation_diffuse.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
   </ItemGroup>
 </Project>

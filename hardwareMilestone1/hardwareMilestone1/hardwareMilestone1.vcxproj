@@ -204,6 +204,7 @@
     <Image Include="barrel.dds" />
     <Image Include="crate1_diffuse.dds" />
     <Image Include="skyBox.dds" />
+    <Image Include="spacestation_diffuse.dds" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
