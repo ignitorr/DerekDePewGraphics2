@@ -230,9 +230,8 @@ class DEMO_APP
 	bool LoadBuffers(SIMPLE_VERTEX verts[], short indices[], unsigned int numVerts, unsigned int numInds, ID3D11Buffer **vertBuffer, ID3D11Buffer **indBuffer);
 	bool LoadTexture(const wchar_t *texturePath, ID3D11ShaderResourceView **textureRV, ID3D11SamplerState **textureSampler);
 	bool LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int indices[], unsigned int numVerts, unsigned int numInd, const wchar_t *texturePath);
-	bool LoadOBJ(const char *filePath, const wchar_t *texturePath);
-	bool CreateIndexedCube(float scale, const wchar_t *texturePath);
-	bool CreateSkybox(const wchar_t *texturePath);
+	bool LoadOBJ(const char *filePath, const wchar_t *texturePath, ID3D11Buffer **vertBuffer, ID3D11Buffer **indBuffer, ID3D11ShaderResourceView **textureRV, ID3D11SamplerState **textureSampler, bool updateIndex, unsigned int *index);
+	bool CreateIndexedCube(float scale, const wchar_t *texturePath, ID3D11Buffer **vertBuffer, ID3D11Buffer **indBuffer, ID3D11ShaderResourceView **textureRV, ID3D11SamplerState **textureSampler, XMMATRIX *world, bool updateIndex, unsigned int *index);
 	bool CreateInstancedCube(float scale, const wchar_t *texturePath, unsigned int count, XMFLOAT3 offset);
 public:
 	DEMO_APP(HINSTANCE hinst, WNDPROC proc);
@@ -306,7 +305,7 @@ bool DEMO_APP::LoadTexture(const wchar_t *texturePath, ID3D11ShaderResourceView 
 //////////////////////////////////////////////////////////////////////
 // Loads in OBJ, and adds it to the vertex and index buffer arrays. 
 //////////////////////////////////////////////////////////////////////
-bool DEMO_APP::LoadOBJ(const char *filePath, const wchar_t *texturePath)
+bool DEMO_APP::LoadOBJ(const char *filePath, const wchar_t *texturePath, ID3D11Buffer **vertBuffer, ID3D11Buffer **indBuffer, ID3D11ShaderResourceView **textureRV, ID3D11SamplerState **textureSampler, bool updateIndex = false, unsigned int *index = nullptr)
 {
 	// abort if file not found
 	FILE *file = fopen(filePath, "r");
@@ -420,16 +419,19 @@ bool DEMO_APP::LoadOBJ(const char *filePath, const wchar_t *texturePath)
 			currentVertexIndex++;
 		}
 	}
-	LoadBuffers(meshVerts, meshIndices, normals.size(), vertIndices.size(), &vertexBuffers[currentIndex], &indexBuffers[currentIndex]);
+	LoadBuffers(meshVerts, meshIndices, normals.size(), vertIndices.size(), vertBuffer, indBuffer);
 
-	//update number arrays
-	numVertices[currentIndex] = normals.size();
-	numIndices[currentIndex] = vertIndices.size();
 
 	// load the model's texture
-	LoadTexture(texturePath, &textureRVs[currentIndex], &textureSamplers[currentIndex]);
+	LoadTexture(texturePath, textureRV, textureSampler);
 
-	currentIndex += 1;
+	if (updateIndex)
+	{
+		//update number arrays
+		numVertices[currentIndex] = normals.size();
+		numIndices[currentIndex] = vertIndices.size();
+		*index += 1;
+	}
 	return true;
 }
 
@@ -469,7 +471,7 @@ bool DEMO_APP::LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int ind
 ///////////////////////////////////////////////////
 // Creates an indexed cube in the buffer arrays. 
 ///////////////////////////////////////////////////
-bool DEMO_APP::CreateIndexedCube(float scale, const wchar_t *texturePath)
+bool DEMO_APP::CreateIndexedCube(float scale, const wchar_t *texturePath, ID3D11Buffer **vertBuffer, ID3D11Buffer **indBuffer, ID3D11ShaderResourceView **textureRV, ID3D11SamplerState **textureSampler, XMMATRIX *world, bool updateIndex = false, unsigned int *index = nullptr)
 {
 	SIMPLE_VERTEX cube[] =
 	{
@@ -516,78 +518,24 @@ bool DEMO_APP::CreateIndexedCube(float scale, const wchar_t *texturePath)
 
 	};
 
-	LoadBuffers(cube, cubeInd, ARRAYSIZE(cube), ARRAYSIZE(cubeInd), &vertexBuffers[currentIndex], &indexBuffers[currentIndex]);
-
-	// update number arrays
-	numVertices[currentIndex] = ARRAYSIZE(cube);
-	numIndices[currentIndex] = ARRAYSIZE(cubeInd);
+	LoadBuffers(cube, cubeInd, ARRAYSIZE(cube), ARRAYSIZE(cubeInd), vertBuffer, indBuffer);
 
 	// load the model's texture
-	LoadTexture(texturePath, &textureRVs[currentIndex], &textureSamplers[currentIndex]);
+	LoadTexture(texturePath, textureRV, textureSampler);
 
 	// create worldMatrix
-	worldMatrices[currentIndex] = XMMatrixScaling(scale, scale, scale) * XMMatrixIdentity();
+	//worldMatrices[currentIndex] = XMMatrixScaling(scale, scale, scale) * XMMatrixIdentity();
+	*world = XMMatrixScaling(scale, scale, scale) * (*world);
 	
 	// update currentIndex before exiting
-	currentIndex += 1;
-
-	return true;
-}
-
-//////////////////////////////////////////////////////
-// Creates a Skybox with the given cubemap texture. 
-//////////////////////////////////////////////////////
-bool DEMO_APP::CreateSkybox(const wchar_t *texturePath)
-{
-	SIMPLE_VERTEX cube[] =
+	//currentIndex += 1;
+	if (updateIndex)
 	{
-		{ XMFLOAT3(-0.5f, 0.5f,-0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
-		{ XMFLOAT3(0.5f, 0.5f,-0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
-		{ XMFLOAT3(0.5f,0.5f,0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
-		{ XMFLOAT3(-0.5f,0.5f,0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
-
-		{ XMFLOAT3(-0.5f, -0.5f, -0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
-		{ XMFLOAT3(0.5f, -0.5f, -0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
-		{ XMFLOAT3(0.5f,-0.5f, 0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
-		{ XMFLOAT3(-0.5f,-0.5f, 0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
-
-		{ XMFLOAT3(-0.5f,-0.5f, 0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
-		{ XMFLOAT3(-0.5f,-0.5f, -0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
-		{ XMFLOAT3(-0.5f,0.5f, -0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
-		{ XMFLOAT3(-0.5f,0.5f, 0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
-
-		{ XMFLOAT3(0.5f, -0.5f, 0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
-		{ XMFLOAT3(0.5f, -0.5f, -0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
-		{ XMFLOAT3(0.5f, 0.5f, -0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
-		{ XMFLOAT3(0.5f, 0.5f, 0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
-
-		{ XMFLOAT3(-0.5f, -0.5f, -0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
-		{ XMFLOAT3(0.5f, -0.5f, -0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
-		{ XMFLOAT3(0.5f, 0.5f, -0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
-		{ XMFLOAT3(-0.5f, 0.5f, -0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
-
-		{ XMFLOAT3(-0.5f, -0.5f, 0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
-		{ XMFLOAT3(0.5f, -0.5f, 0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
-		{ XMFLOAT3(0.5f, 0.5f, 0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
-		{ XMFLOAT3(-0.5f, 0.5f, 0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
-
-	};
-	short cubeInd[] =
-	{
-
-		3,1,0, 2,1,3,
-		6,4,5, 7,4,6,
-		11,9,8, 10,9,11,
-		14,12,13, 15,12,14,
-		19,17,16, 18,17,19,
-		22,20,21, 23,20,22
-
-	};
-
-	LoadBuffers(cube, cubeInd, ARRAYSIZE(cube), ARRAYSIZE(cubeInd), &skyboxVBuffer, &skyboxIBuffer);
-
-	LoadTexture(texturePath, &skyboxRV, &skyboxSampler);
-
+		//update number arrays
+		numVertices[currentIndex] = ARRAYSIZE(cube);
+		numIndices[currentIndex] = ARRAYSIZE(cubeInd);
+		*index += 1;
+	}
 	return true;
 }
 
@@ -795,28 +743,29 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	///////////////////////////////////
 	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(4.0f, 0.0f, 0.0f);
 	//LoadMeshFromHeader(Barrel_data, Barrel_indicies, ARRAYSIZE(Barrel_data), ARRAYSIZE(Barrel_indicies), L"barrel.dds");
-	LoadOBJ("Barrel.obj", L"barrel.dds");
+	LoadOBJ("Barrel.obj", L"barrel.dds", &vertexBuffers[currentIndex], &indexBuffers[currentIndex], &textureRVs[currentIndex], &textureSamplers[currentIndex], true, &currentIndex);
 	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(3.0f, 2.0f, 0.0f);
-	LoadOBJ("Barrel.obj", L"barrel.dds");
+	LoadOBJ("Barrel.obj", L"barrel.dds", &vertexBuffers[currentIndex], &indexBuffers[currentIndex], &textureRVs[currentIndex], &textureSamplers[currentIndex], true, &currentIndex);
 	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(5.0f, 2.0f, 0.0f);
-	LoadOBJ("Barrel.obj", L"barrel.dds");
+	LoadOBJ("Barrel.obj", L"barrel.dds", &vertexBuffers[currentIndex], &indexBuffers[currentIndex], &textureRVs[currentIndex], &textureSamplers[currentIndex], true, &currentIndex);
 	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(4.0f, 4.0f, 0.0f);
-	LoadOBJ("Barrel.obj", L"barrel.dds");
+	LoadOBJ("Barrel.obj", L"barrel.dds", &vertexBuffers[currentIndex], &indexBuffers[currentIndex], &textureRVs[currentIndex], &textureSamplers[currentIndex], true, &currentIndex);
 	worldMatrices[currentIndex] = XMMatrixScaling(15.0f, 2.0f, 15.0f) * XMMatrixIdentity() * XMMatrixTranslation(0.0f, 9.0f, 0.0f);
 	LoadMeshFromHeader(test_pyramid_data, test_pyramid_indicies, ARRAYSIZE(test_pyramid_data), ARRAYSIZE(test_pyramid_indicies), L"barrel.dds");
 
 	worldMatrices[currentIndex] = XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixIdentity() * XMMatrixTranslation(-5.0f, 0.0f, 0.0f);
-	bool result = LoadOBJ("penguin.obj", L"peng.dds");
+	bool result = LoadOBJ("penguin.obj", L"peng.dds", &vertexBuffers[currentIndex], &indexBuffers[currentIndex], &textureRVs[currentIndex], &textureSamplers[currentIndex], true, &currentIndex);
 	worldMatrices[currentIndex] = XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixIdentity() * XMMatrixTranslation(-7.0f, 0.0f, 0.0f);
 	LoadMeshFromHeader(penguin_data, penguin_indicies, ARRAYSIZE(penguin_data), ARRAYSIZE(penguin_indicies), L"peng.dds");
 
-	//CreateIndexedCube(0.5f, L"barrel.dds");
+	worldMatrices[currentIndex] = XMMatrixIdentity() * XMMatrixTranslation(-2.0f, 0.0f, 0.0f);
+	CreateIndexedCube(0.5f, L"barrel.dds", &vertexBuffers[currentIndex], &indexBuffers[currentIndex], &textureRVs[currentIndex], &textureSamplers[currentIndex], &worldMatrices[currentIndex], true, &currentIndex);
 
 	instanceMatrices[currentInstanceIndex] = XMMatrixIdentity() * XMMatrixTranslation(0.0f, 3.0f, 0.0f);
 	CreateInstancedCube(0.5f, L"crate1_diffuse.dds", 2500, XMFLOAT3(0, 0, 2));
 
 	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * XMMatrixTranslation(13.0f, 5.0f, 0.0f);
-	LoadOBJ("spacestation.obj", L"spacestation_diffuse.dds");
+	LoadOBJ("spacestation.obj", L"spacestation_diffuse.dds", &vertexBuffers[currentIndex], &indexBuffers[currentIndex], &textureRVs[currentIndex], &textureSamplers[currentIndex], true, &currentIndex);
 
 	//////////////////////
 	// END MESH LOADING //
@@ -873,8 +822,10 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	device->CreateRasterizerState(&regularRDesc, &rState);
 	*/
-	CreateSkybox(L"skyBox.dds");
-	skyboxM = XMMatrixIdentity() * XMMatrixScaling((float)SKYBOX_SCALE, (float)SKYBOX_SCALE, (float)SKYBOX_SCALE);
+	//CreateSkybox(L"skyBox.dds");
+	//skyboxM = XMMatrixIdentity() * XMMatrixScaling((float)SKYBOX_SCALE, (float)SKYBOX_SCALE, (float)SKYBOX_SCALE);
+	skyboxM = XMMatrixIdentity();
+	CreateIndexedCube((float)SKYBOX_SCALE, L"skyBox.dds", &skyboxVBuffer, &skyboxIBuffer, &skyboxRV, &skyboxSampler, &skyboxM);
 
 	cbDesc.ByteWidth = sizeof(SKYBOX_VS_DATA);
 	device->CreateBuffer(&cbDesc, NULL, &skyboxConstantBuffer);
@@ -937,7 +888,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	mapProjection = XMMatrixOrthographicLH(BACKBUFFER_WIDTH, BACKBUFFER_HEIGHT, 1.0f, 1000.0f);
 	*/
 
-	// render to texture 2.0
+	// render to texture take 2
 	rtViewport.Width = 512;
 	rtViewport.Height = 512;
 	rtViewport.MinDepth = 0.0f;
@@ -946,9 +897,6 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	rtViewport.TopLeftY = 0;
 
 	D3D11_TEXTURE2D_DESC rtDesc;
-	D3D11_RENDER_TARGET_VIEW_DESC rtRTVDesc;
-	D3D11_SHADER_RESOURCE_VIEW_DESC rtSRVDesc;
-
 	ZeroMemory(&rtDesc, sizeof(rtDesc));
 	rtDesc.Width = 512;
 	rtDesc.Height = 512;
@@ -962,72 +910,24 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	rtDesc.MiscFlags = D3D11_RESOURCE_MISC_GENERATE_MIPS;
 	device->CreateTexture2D(&rtDesc, NULL, &renderTarget);
 
-	//ZeroMemory(&rtRTVDesc, sizeof(rtRTVDesc));
+	D3D11_RENDER_TARGET_VIEW_DESC rtRTVDesc;
 	rtRTVDesc.Format = rtDesc.Format;
 	rtRTVDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
 	rtRTVDesc.Texture2D.MipSlice = 0;
 	device->CreateRenderTargetView(renderTarget, &rtRTVDesc, &rtRTV);
 
-	//ZeroMemory(&rtSRVDesc, sizeof(rtSRVDesc));
+	D3D11_SHADER_RESOURCE_VIEW_DESC rtSRVDesc;
 	rtSRVDesc.Format = rtDesc.Format;
 	rtSRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
 	rtSRVDesc.Texture2D.MostDetailedMip = 0;
 	rtSRVDesc.Texture2D.MipLevels = 1;
 	device->CreateShaderResourceView(renderTarget, &rtSRVDesc, &rtSRV);
 
-	rtWorld = XMMatrixIdentity();
+	rtWorld = XMMatrixIdentity() * XMMatrixTranslation(2, 0, 0);
 	rtView = viewM;
 	rtProj = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), 512 / (FLOAT)512, 0.01f, 100.0f);
 
-	SIMPLE_VERTEX cube[] =
-	{
-		{ XMFLOAT3(-0.5f, 0.5f,-0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
-		{ XMFLOAT3(0.5f, 0.5f,-0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
-		{ XMFLOAT3(0.5f,0.5f,0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
-		{ XMFLOAT3(-0.5f,0.5f,0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f) },
-
-		{ XMFLOAT3(-0.5f, -0.5f, -0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
-		{ XMFLOAT3(0.5f, -0.5f, -0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
-		{ XMFLOAT3(0.5f,-0.5f, 0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
-		{ XMFLOAT3(-0.5f,-0.5f, 0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f) },
-
-		{ XMFLOAT3(-0.5f,-0.5f, 0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
-		{ XMFLOAT3(-0.5f,-0.5f, -0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
-		{ XMFLOAT3(-0.5f,0.5f, -0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
-		{ XMFLOAT3(-0.5f,0.5f, 0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f) },
-
-		{ XMFLOAT3(0.5f, -0.5f, 0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
-		{ XMFLOAT3(0.5f, -0.5f, -0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
-		{ XMFLOAT3(0.5f, 0.5f, -0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
-		{ XMFLOAT3(0.5f, 0.5f, 0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) },
-
-		{ XMFLOAT3(-0.5f, -0.5f, -0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
-		{ XMFLOAT3(0.5f, -0.5f, -0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
-		{ XMFLOAT3(0.5f, 0.5f, -0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
-		{ XMFLOAT3(-0.5f, 0.5f, -0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f) },
-
-		{ XMFLOAT3(-0.5f, -0.5f, 0.5f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
-		{ XMFLOAT3(0.5f, -0.5f, 0.5f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
-		{ XMFLOAT3(0.5f, 0.5f, 0.5f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
-		{ XMFLOAT3(-0.5f, 0.5f, 0.5f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 1.0f) },
-
-	};
-	short cubeInd[] =
-	{
-
-		3,1,0, 2,1,3,
-		6,4,5, 7,4,6,
-		11,9,8, 10,9,11,
-		14,12,13, 15,12,14,
-		19,17,16, 18,17,19,
-		22,20,21, 23,20,22
-
-	};
-	LoadBuffers(cube, cubeInd, ARRAYSIZE(cube), ARRAYSIZE(cubeInd), &rtVBuffer, &rtIBuffer);
-	LoadTexture(L"crate1_diffuse.dds", &rtCubeSRV, &rtCubeSampler);
-
-	// create cube in actual viewport that shows texture
-	//LoadBuffers(cube, cubeInd, ARRAYSIZE(cube), ARRAYSIZE(cubeInd), &exampleVBuffer, &exampleIBuffer);
+	CreateIndexedCube(1.0f, L"crate1_diffuse.dds", &rtVBuffer, &rtIBuffer, &rtCubeSRV, &rtCubeSampler, &rtWorld);
 }
 
 //************************************************************
@@ -1210,7 +1110,7 @@ bool DEMO_APP::Run()
 	context->PSSetShaderResources(0, 1, &rtSRV);
 	context->PSSetSamplers(0, 1, &rtCubeSampler);
 
-	vData.world = XMMatrixIdentity() + XMMatrixTranslation(3.0f, 0.0f, 0.0f);
+	vData.world = rtWorld;
 	vData.view = viewM;
 	vData.proj = projM;
 
@@ -1220,7 +1120,6 @@ bool DEMO_APP::Run()
 
 	context->DrawIndexed(36, 0, 0);
 	
-
 	/*
 	
 	// RENDER TO TEXTURE STUFF
@@ -1291,7 +1190,6 @@ bool DEMO_APP::Run()
 	context->DrawIndexed(6, 0, 0);
 	// END RTT
 	*/
-	//context->DrawIndexedInstanced(numIndices[currentIndex - 1], 6, 0, 0, 0);
 
 	swap->Present(0, 0);
 	return true;
