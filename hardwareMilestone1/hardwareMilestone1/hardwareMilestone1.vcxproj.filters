@@ -53,6 +53,7 @@
     <FxCompile Include="Trivial_PS.hlsl" />
     <FxCompile Include="Skybox_PS.hlsl" />
     <FxCompile Include="Skybox_VS.hlsl" />
+    <FxCompile Include="Multitexture_PS.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="crate1_diffuse.dds">

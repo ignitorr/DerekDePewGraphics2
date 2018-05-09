@@ -37,6 +37,7 @@ using namespace DirectX;
 #include "Trivial_PS.csh"
 #include "Skybox_PS.csh"
 #include "Skybox_VS.csh"
+#include "Multitexture_PS.csh"
 
 #define BACKBUFFER_WIDTH	1200
 #define BACKBUFFER_HEIGHT	800
@@ -117,15 +118,19 @@ class DEMO_APP
 	XMMATRIX					instanceMatrices[INSTANCE_MESH_COUNT];
 	//ID3D11Buffer				*instanceVConstantBuffer;
 
-
-	//ID3D11Texture2D				*renderTargetTextureMap;
-	//ID3D11RenderTargetView		*renderTargetViewMap;
-	//ID3D11ShaderResourceView	*shaderResourceViewMap;
-	//XMMATRIX					mapView;
-	//XMMATRIX					mapProjection;
-	//ID3D11Buffer				*squareVBuffer;
-	//ID3D11Buffer				*squareIBuffer;
-	//ID3D11DepthStencilView		*rttDSV;
+	///////////////////////
+	// RENDER TO TEXTURE //
+	///////////////////////
+	/*
+	ID3D11Texture2D				*renderTargetTextureMap;
+	ID3D11RenderTargetView		*renderTargetViewMap;
+	ID3D11ShaderResourceView	*shaderResourceViewMap;
+	XMMATRIX					mapView;
+	XMMATRIX					mapProjection;
+	ID3D11Buffer				*squareVBuffer;
+	ID3D11Buffer				*squareIBuffer;
+	ID3D11DepthStencilView		*rttDSV;
+	*/
 	D3D11_VIEWPORT				rtViewport;
 	ID3D11RenderTargetView		*rtRTV;
 	ID3D11ShaderResourceView	*rtSRV;
@@ -140,8 +145,21 @@ class DEMO_APP
 	XMMATRIX					rtWorld;
 	XMMATRIX					rtView;
 	XMMATRIX					rtProj;
-	// end RTT
 
+	/////////////////////
+	// MULTI TEXTURING //
+	/////////////////////
+	ID3D11ShaderResourceView	*multiTextureRVs[2];
+	ID3D11SamplerState			*multiSampler;
+	ID3D11PixelShader			*multiPS;
+	ID3D11Buffer				*mtVBuffer;
+	ID3D11Buffer				*mtIBuffer;
+	XMMATRIX					mtWorld;
+
+
+	////////////////////
+	// MISC VARIABLES //
+	////////////////////
 	XMMATRIX					viewM;
 	XMMATRIX					projM;
 
@@ -707,8 +725,10 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	device->CreateVertexShader(Trivial_VS, sizeof(Trivial_VS), NULL, &vs);
 	device->CreatePixelShader(Trivial_PS, sizeof(Trivial_PS), NULL, &ps);
 
-	HRESULT rest = device->CreateVertexShader(Skybox_VS, sizeof(Skybox_VS), NULL, &skyboxVS);
+	device->CreateVertexShader(Skybox_VS, sizeof(Skybox_VS), NULL, &skyboxVS);
 	device->CreatePixelShader(Skybox_PS, sizeof(Skybox_PS), NULL, &skyboxPS);
+	
+	device->CreatePixelShader(Multitexture_PS, sizeof(Multitexture_PS), NULL, &multiPS);
 
 
 
@@ -928,6 +948,11 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	rtProj = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), 512 / (FLOAT)512, 0.01f, 100.0f);
 
 	CreateIndexedCube(1.0f, L"crate1_diffuse.dds", &rtVBuffer, &rtIBuffer, &rtCubeSRV, &rtCubeSampler, &rtWorld);
+
+	// MULTI TEX CUBE //
+	mtWorld = XMMatrixIdentity() * XMMatrixTranslation(4, 3.5f, 2);
+	CreateIndexedCube(1.0f, L"stoneMultiTex.dds", &mtVBuffer, &mtIBuffer, &multiTextureRVs[0], &multiSampler, &mtWorld);
+	CreateDDSTextureFromFile(device, L"dirtMultiTex.dds", nullptr, &multiTextureRVs[1]);
 }
 
 //************************************************************
@@ -1190,6 +1215,22 @@ bool DEMO_APP::Run()
 	context->DrawIndexed(6, 0, 0);
 	// END RTT
 	*/
+	
+	// MULTI TEXTURE TEST //
+	context->PSSetShader(multiPS, 0, 0);
+	context->IASetVertexBuffers(0, 1, &mtVBuffer, &strides, &offsets);
+	context->IASetIndexBuffer(mtIBuffer, DXGI_FORMAT_R16_UINT, 0);
+	context->PSSetShaderResources(0, 2, multiTextureRVs);
+	context->PSSetSamplers(0, 1, &multiSampler);
+
+	vData.world = mtWorld;
+	context->Map(vertexConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
+	memcpy(vsSub.pData, &vData, sizeof(vData));
+	context->Unmap(vertexConstantBuffer, NULL);
+
+	context->DrawIndexed(36, 0, 0);
+	// END MULTI TEXTURE //
+	
 
 	swap->Present(0, 0);
 	return true;
@@ -1251,6 +1292,14 @@ bool DEMO_APP::ShutDown()
 	renderTarget->Release();
 	rtCubeSampler->Release();
 	rtCubeSRV->Release();
+
+	//release MT data
+	multiPS->Release();
+	multiSampler->Release();
+	multiTextureRVs[0]->Release();
+	multiTextureRVs[1]->Release();
+	mtIBuffer->Release();
+	mtVBuffer->Release();
 
 
 	UnregisterClass(L"DirectXApplication", application);
