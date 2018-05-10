@@ -5,6 +5,7 @@ struct INPUT_VERTEX
 	//float4 color : COLOR;
 	float2 tex : TEXCOORD0;
 	float3 norm : NORMAL;
+	float3 tangent : TANGENT;
 	uint instanceID : SV_INSTANCEID;
 };
 

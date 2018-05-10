@@ -38,6 +38,8 @@ using namespace DirectX;
 #include "Skybox_PS.csh"
 #include "Skybox_VS.csh"
 #include "Multitexture_PS.csh"
+#include "NormalMap_VS.csh"
+#include "NormalMap_PS.csh"
 
 #define BACKBUFFER_WIDTH	1200
 #define BACKBUFFER_HEIGHT	800
@@ -156,6 +158,17 @@ class DEMO_APP
 	ID3D11Buffer				*mtIBuffer;
 	XMMATRIX					mtWorld;
 
+	////////////////////
+	// NORMAL MAPPING //
+	////////////////////
+	ID3D11ShaderResourceView	*normalTextureRVs[2];
+	ID3D11SamplerState			*normalSampler;
+	ID3D11VertexShader			*normalVS;
+	ID3D11PixelShader			*normalPS;
+	ID3D11Buffer				*normalVBuffer;
+	ID3D11Buffer				*normalIBuffer;
+	XMMATRIX					normalWorld;
+
 
 	////////////////////
 	// MISC VARIABLES //
@@ -243,8 +256,28 @@ class DEMO_APP
 		//XMFLOAT4 color;
 		XMFLOAT2 uv;
 		XMFLOAT3 normal;
+		XMFLOAT3 tangent;
+
+		bool operator==(const SIMPLE_VERTEX that)
+		{
+			if (xyz.x == that.xyz.x && xyz.y == that.xyz.y && xyz.z == that.xyz.z)
+			{
+				if (uv.x == that.uv.x && uv.y == that.uv.y)
+				{
+					if (normal.x == that.normal.x && normal.y == that.normal.y && normal.z == that.normal.z)
+					{
+						if (tangent.x = that.tangent.x && tangent.y == that.tangent.y && that.tangent.z == tangent.z)
+						{
+							return true;
+						}
+					}
+				}
+			}
+			return false;
+		}
 	};
 
+	bool CalculateTangents(SIMPLE_VERTEX verts[], short indices[], unsigned int numVerts, unsigned int numInds);
 	bool LoadBuffers(SIMPLE_VERTEX verts[], short indices[], unsigned int numVerts, unsigned int numInds, ID3D11Buffer **vertBuffer, ID3D11Buffer **indBuffer);
 	bool LoadTexture(const wchar_t *texturePath, ID3D11ShaderResourceView **textureRV, ID3D11SamplerState **textureSampler);
 	bool LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int indices[], unsigned int numVerts, unsigned int numInd, const wchar_t *texturePath);
@@ -262,6 +295,84 @@ public:
 	bool ShutDown();
 	bool ResizeWindow();
 	bool MoveCamera();
+};
+
+/////////////////////////////////////////////
+// Calculate tangents for given mesh data. 
+// Used for normal mapping.		
+/////////////////////////////////////////////
+bool DEMO_APP::CalculateTangents(SIMPLE_VERTEX verts[], short indices[], unsigned int numVerts, unsigned int numInds)
+{
+	vector<XMFLOAT3> tempTangents;
+	XMFLOAT3 tempTangent;
+	float tangentU1, tangentU2, tangentV1, tangentV2;
+
+	XMVECTOR edge1, edge2;
+	float edgeX, edgeY, edgeZ;
+
+	for (int i = 0; i < (numInds / 3); i++)
+	{
+		// calculate position edges for tangents
+		edgeX = verts[indices[i * 3]].xyz.x - verts[indices[(i * 3) + 2]].xyz.x;
+		edgeY = verts[indices[i * 3]].xyz.y - verts[indices[(i * 3) + 2]].xyz.y;
+		edgeZ = verts[indices[i * 3]].xyz.z - verts[indices[(i * 3) + 2]].xyz.z;
+		edge1 = XMVectorSet(edgeX, edgeY, edgeZ, 0);
+
+		edgeX = verts[indices[i * 3]].xyz.x - verts[indices[(i * 3) + 1]].xyz.x;
+		edgeY = verts[indices[i * 3]].xyz.y - verts[indices[(i * 3) + 1]].xyz.y;
+		edgeZ = verts[indices[i * 3]].xyz.z - verts[indices[(i * 3) + 1]].xyz.z;
+		edge2 = XMVectorSet(edgeX, edgeY, edgeZ, 0);
+
+		// calculate texture coordinates for edges
+		tangentU1 = verts[indices[i * 3]].uv.x - verts[indices[(i * 3) + 2]].uv.x;
+		tangentV1 = verts[indices[i * 3]].uv.y - verts[indices[(i * 3) + 2]].uv.y;
+
+		tangentU2 = verts[indices[i * 3]].uv.x - verts[indices[(i * 3) + 1]].uv.x;
+		tangentV2 = verts[indices[i * 3]].uv.y - verts[indices[(i * 3) + 1]].uv.y;
+
+		// find the tangent
+		tempTangent.x = (tangentV1 * XMVectorGetX(edge1) - tangentV2 * XMVectorGetX(edge2)) * (1.0f / (tangentU1 * tangentV2 - tangentU2 * tangentV1));
+		tempTangent.y = (tangentV1 * XMVectorGetY(edge1) - tangentV2 * XMVectorGetY(edge2)) * (1.0f / (tangentU1 * tangentV2 - tangentU2 * tangentV1));
+		tempTangent.z = (tangentV1 * XMVectorGetZ(edge1) - tangentV2 * XMVectorGetZ(edge2)) * (1.0f / (tangentU1 * tangentV2 - tangentU2 * tangentV1));
+
+		tempTangents.push_back(tempTangent);
+	}
+
+	float tangentX, tangentY, tangentZ;
+	vector<XMFLOAT3> savedTangents; // this would be the list of tangents added to the verts
+	
+	for (int i = 0; i < numVerts; i++)
+	{
+		XMVECTOR tangentSum = XMVectorSet(0, 0, 0, 0);
+		int facesUsed = 0;
+		for (int v = 0; (v < numInds / 3); v++)
+		{
+			if (indices[v * 3] == i || indices[(v * 3) + 1] == i || indices[(v * 3) + 2] == i)
+			{
+				tangentX = XMVectorGetX(tangentSum) + tempTangents[v].x;
+				tangentY = XMVectorGetY(tangentSum) + tempTangents[v].y;
+				tangentZ = XMVectorGetZ(tangentSum) + tempTangents[v].z;
+
+				tangentSum = XMVectorSet(tangentX, tangentY, tangentZ, 0);
+				facesUsed++;
+			}
+		}
+
+		tangentSum = tangentSum / (float)facesUsed;
+		tangentSum = XMVector3Normalize(tangentSum);
+
+		XMFLOAT3 newTangent;
+		newTangent.x = XMVectorGetX(tangentSum);
+		newTangent.y = XMVectorGetY(tangentSum);
+		newTangent.z = XMVectorGetZ(tangentSum);
+
+		verts[i].tangent = newTangent;
+
+		//savedTangents.push_back(newTangent);
+
+	}
+
+	return true;
 };
 
 //////////////////////////////////////////////////////////
@@ -437,6 +548,9 @@ bool DEMO_APP::LoadOBJ(const char *filePath, const wchar_t *texturePath, ID3D11B
 			currentVertexIndex++;
 		}
 	}
+
+	CalculateTangents(meshVerts, meshIndices, normals.size(), vertIndices.size());
+
 	LoadBuffers(meshVerts, meshIndices, normals.size(), vertIndices.size(), vertBuffer, indBuffer);
 
 
@@ -535,6 +649,8 @@ bool DEMO_APP::CreateIndexedCube(float scale, const wchar_t *texturePath, ID3D11
 		22,20,21, 23,20,22
 
 	};
+
+	CalculateTangents(cube, cubeInd, ARRAYSIZE(cube), ARRAYSIZE(cubeInd));
 
 	LoadBuffers(cube, cubeInd, ARRAYSIZE(cube), ARRAYSIZE(cubeInd), vertBuffer, indBuffer);
 
@@ -730,6 +846,9 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	
 	device->CreatePixelShader(Multitexture_PS, sizeof(Multitexture_PS), NULL, &multiPS);
 
+	device->CreateVertexShader(NormalMap_VS, sizeof(NormalMap_VS), NULL, &normalVS);
+	device->CreatePixelShader(NormalMap_PS, sizeof(NormalMap_PS), NULL, &normalPS);
+
 
 
 	// CREATE INPUT LAYOUT
@@ -738,6 +857,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		{ "SV_INSTANCEID", 0, DXGI_FORMAT_R32_UINT, 1, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_INSTANCE_DATA, 1},
 		//{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 	};
@@ -778,8 +898,8 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	worldMatrices[currentIndex] = XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixIdentity() * XMMatrixTranslation(-7.0f, 0.0f, 0.0f);
 	LoadMeshFromHeader(penguin_data, penguin_indicies, ARRAYSIZE(penguin_data), ARRAYSIZE(penguin_indicies), L"peng.dds");
 
-	worldMatrices[currentIndex] = XMMatrixIdentity() * XMMatrixTranslation(-2.0f, 0.0f, 0.0f);
-	CreateIndexedCube(0.5f, L"barrel.dds", &vertexBuffers[currentIndex], &indexBuffers[currentIndex], &textureRVs[currentIndex], &textureSamplers[currentIndex], &worldMatrices[currentIndex], true, &currentIndex);
+	//worldMatrices[currentIndex] = XMMatrixIdentity() * XMMatrixTranslation(-2.0f, 0.0f, 0.0f);
+	//CreateIndexedCube(0.5f, L"barrel.dds", &vertexBuffers[currentIndex], &indexBuffers[currentIndex], &textureRVs[currentIndex], &textureSamplers[currentIndex], &worldMatrices[currentIndex], true, &currentIndex);
 
 	instanceMatrices[currentInstanceIndex] = XMMatrixIdentity() * XMMatrixTranslation(0.0f, 3.0f, 0.0f);
 	CreateInstancedCube(0.5f, L"crate1_diffuse.dds", 2500, XMFLOAT3(0, 0, 2));
@@ -815,8 +935,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	psData.spot[0].innerConeRatio = 0.98f;
 
 
-
-	// WIP SKYBOX CODE:
+	// SKYBOX CODE:
 	/*
 	regularRDesc.FillMode = D3D11_FILL_SOLID;
 	regularRDesc.CullMode = D3D11_CULL_FRONT;
@@ -842,8 +961,6 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	device->CreateRasterizerState(&regularRDesc, &rState);
 	*/
-	//CreateSkybox(L"skyBox.dds");
-	//skyboxM = XMMatrixIdentity() * XMMatrixScaling((float)SKYBOX_SCALE, (float)SKYBOX_SCALE, (float)SKYBOX_SCALE);
 	skyboxM = XMMatrixIdentity();
 	CreateIndexedCube((float)SKYBOX_SCALE, L"skyBox.dds", &skyboxVBuffer, &skyboxIBuffer, &skyboxRV, &skyboxSampler, &skyboxM);
 
@@ -953,6 +1070,11 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	mtWorld = XMMatrixIdentity() * XMMatrixTranslation(4, 3.5f, 2);
 	CreateIndexedCube(1.0f, L"stoneMultiTex.dds", &mtVBuffer, &mtIBuffer, &multiTextureRVs[0], &multiSampler, &mtWorld);
 	CreateDDSTextureFromFile(device, L"dirtMultiTex.dds", nullptr, &multiTextureRVs[1]);
+
+	// NORMAL MAP CUBE //
+	normalWorld = XMMatrixIdentity() * XMMatrixTranslation(4, 3.5f, -2);
+	CreateIndexedCube(1.0f, L"stoneMultiTex.dds", &normalVBuffer, &normalIBuffer, &normalTextureRVs[0], &normalSampler, &normalWorld);
+	CreateDDSTextureFromFile(device, L"stoneNormal.dds", nullptr, &normalTextureRVs[1]);
 }
 
 //************************************************************
@@ -1230,6 +1352,38 @@ bool DEMO_APP::Run()
 
 	context->DrawIndexed(36, 0, 0);
 	// END MULTI TEXTURE //
+
+	// NORMAL MAPPING TEST //
+	
+	context->VSSetShader(normalVS, 0, 0);
+	context->PSSetShader(normalPS, 0, 0);
+	context->IASetVertexBuffers(0, 1, &normalVBuffer, &strides, &offsets);
+	context->IASetIndexBuffer(normalIBuffer, DXGI_FORMAT_R16_UINT, 0);
+	context->PSSetShaderResources(0, 2, normalTextureRVs);
+	context->PSSetSamplers(0, 1, &normalSampler);
+
+	vData.world = normalWorld;
+	context->Map(vertexConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
+	memcpy(vsSub.pData, &vData, sizeof(vData));
+	context->Unmap(vertexConstantBuffer, NULL);
+
+	context->DrawIndexed(36, 0, 0);
+	
+	/*
+	context->VSSetShader(normalVS, 0, 0);
+	context->PSSetShader(normalPS, 0, 0);
+	context->IASetVertexBuffers(0, 1, &vertexBuffers[currentIndex-1], &strides, &offsets);
+	context->IASetIndexBuffer(indexBuffers[currentIndex-1], DXGI_FORMAT_R16_UINT, 0);
+	context->PSSetShaderResources(0, 2, normalTextureRVs);
+	context->PSSetSamplers(0, 1, &normalSampler);
+
+	vData.world = normalWorld;
+	context->Map(vertexConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
+	memcpy(vsSub.pData, &vData, sizeof(vData));
+	context->Unmap(vertexConstantBuffer, NULL);
+
+	context->DrawIndexed(numVertices[currentIndex-1], 0, 0);
+	*/
 	
 
 	swap->Present(0, 0);
@@ -1293,7 +1447,7 @@ bool DEMO_APP::ShutDown()
 	rtCubeSampler->Release();
 	rtCubeSRV->Release();
 
-	//release MT data
+	// release MT data
 	multiPS->Release();
 	multiSampler->Release();
 	multiTextureRVs[0]->Release();
@@ -1301,6 +1455,15 @@ bool DEMO_APP::ShutDown()
 	mtIBuffer->Release();
 	mtVBuffer->Release();
 
+	// release Normal Mapping data
+	normalVS->Release();
+	normalPS->Release();
+	normalTextureRVs[0]->Release();
+	normalTextureRVs[1]->Release();
+	normalSampler->Release();
+	normalIBuffer->Release();
+	normalVBuffer->Release();
+	
 
 	UnregisterClass(L"DirectXApplication", application);
 	return true;
