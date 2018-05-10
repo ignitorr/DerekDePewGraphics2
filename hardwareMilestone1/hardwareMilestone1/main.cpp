@@ -339,8 +339,6 @@ bool DEMO_APP::CalculateTangents(SIMPLE_VERTEX verts[], short indices[], unsigne
 	}
 
 	float tangentX, tangentY, tangentZ;
-	vector<XMFLOAT3> savedTangents; // this would be the list of tangents added to the verts
-	
 	for (int i = 0; i < numVerts; i++)
 	{
 		XMVECTOR tangentSum = XMVectorSet(0, 0, 0, 0);
@@ -367,9 +365,6 @@ bool DEMO_APP::CalculateTangents(SIMPLE_VERTEX verts[], short indices[], unsigne
 		newTangent.z = XMVectorGetZ(tangentSum);
 
 		verts[i].tangent = newTangent;
-
-		//savedTangents.push_back(newTangent);
-
 	}
 
 	return true;
@@ -432,7 +427,9 @@ bool DEMO_APP::LoadTexture(const wchar_t *texturePath, ID3D11ShaderResourceView 
 }
 
 //////////////////////////////////////////////////////////////////////
-// Loads in OBJ, and adds it to the vertex and index buffer arrays. 
+// Loads in OBJ, and adds it to the vertex and index buffer arrays.
+// Option to update index.
+// (for array systems for regular models / instanced models.)
 //////////////////////////////////////////////////////////////////////
 bool DEMO_APP::LoadOBJ(const char *filePath, const wchar_t *texturePath, ID3D11Buffer **vertBuffer, ID3D11Buffer **indBuffer, ID3D11ShaderResourceView **textureRV, ID3D11SamplerState **textureSampler, bool updateIndex = false, unsigned int *index = nullptr)
 {
@@ -600,9 +597,11 @@ bool DEMO_APP::LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int ind
 	return true;
 }
 
-///////////////////////////////////////////////////
-// Creates an indexed cube in the buffer arrays. 
-///////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+// Creates an indexed cube in the buffer arrays.
+// Option to update index.
+// (for array systems for regular models / instanced models.)
+////////////////////////////////////////////////////////////////
 bool DEMO_APP::CreateIndexedCube(float scale, const wchar_t *texturePath, ID3D11Buffer **vertBuffer, ID3D11Buffer **indBuffer, ID3D11ShaderResourceView **textureRV, ID3D11SamplerState **textureSampler, XMMATRIX *world, bool updateIndex = false, unsigned int *index = nullptr)
 {
 	SIMPLE_VERTEX cube[] =
@@ -849,8 +848,6 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	device->CreateVertexShader(NormalMap_VS, sizeof(NormalMap_VS), NULL, &normalVS);
 	device->CreatePixelShader(NormalMap_PS, sizeof(NormalMap_PS), NULL, &normalPS);
 
-
-
 	// CREATE INPUT LAYOUT
 	D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	{
@@ -905,6 +902,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	CreateInstancedCube(0.5f, L"crate1_diffuse.dds", 2500, XMFLOAT3(0, 0, 2));
 
 	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * XMMatrixTranslation(13.0f, 5.0f, 0.0f);
+	//LoadOBJ("asteroid.obj", L"asteroid_diffuse.dds", &vertexBuffers[currentIndex], &indexBuffers[currentIndex], &textureRVs[currentIndex], &textureSamplers[currentIndex], true, &currentIndex);
 	LoadOBJ("spacestation.obj", L"spacestation_diffuse.dds", &vertexBuffers[currentIndex], &indexBuffers[currentIndex], &textureRVs[currentIndex], &textureSamplers[currentIndex], true, &currentIndex);
 
 	//////////////////////
@@ -1072,9 +1070,11 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	CreateDDSTextureFromFile(device, L"dirtMultiTex.dds", nullptr, &multiTextureRVs[1]);
 
 	// NORMAL MAP CUBE //
+	
 	normalWorld = XMMatrixIdentity() * XMMatrixTranslation(4, 3.5f, -2);
 	CreateIndexedCube(1.0f, L"stoneMultiTex.dds", &normalVBuffer, &normalIBuffer, &normalTextureRVs[0], &normalSampler, &normalWorld);
 	CreateDDSTextureFromFile(device, L"stoneNormal.dds", nullptr, &normalTextureRVs[1]);
+	
 }
 
 //************************************************************
@@ -1369,22 +1369,9 @@ bool DEMO_APP::Run()
 
 	context->DrawIndexed(36, 0, 0);
 	
-	/*
-	context->VSSetShader(normalVS, 0, 0);
-	context->PSSetShader(normalPS, 0, 0);
-	context->IASetVertexBuffers(0, 1, &vertexBuffers[currentIndex-1], &strides, &offsets);
-	context->IASetIndexBuffer(indexBuffers[currentIndex-1], DXGI_FORMAT_R16_UINT, 0);
-	context->PSSetShaderResources(0, 2, normalTextureRVs);
-	context->PSSetSamplers(0, 1, &normalSampler);
 
-	vData.world = normalWorld;
-	context->Map(vertexConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
-	memcpy(vsSub.pData, &vData, sizeof(vData));
-	context->Unmap(vertexConstantBuffer, NULL);
 
-	context->DrawIndexed(numVertices[currentIndex-1], 0, 0);
-	*/
-	
+	// END NORMAL MAPPING //
 
 	swap->Present(0, 0);
 	return true;
