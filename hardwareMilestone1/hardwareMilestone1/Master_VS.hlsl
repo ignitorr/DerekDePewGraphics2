@@ -15,14 +15,21 @@ struct OUTPUT_VERTEX
 	float4 projectedCoordinate : SV_POSITION;
 	float4 worldPos : WORLDPOS;
 	float3 norm : NORMAL;
+	float3 tangent : TANGENT;
+	bool normalMap : NMAP;
+	bool multiTex : MULTI;
 };
 
-// TODO: PART 3 STEP 2a
 cbuffer THIS_IS_VRAM : register(b0)
 {
 	matrix world;
 	matrix view;
 	matrix proj;
+	float4 offset;
+	float4 inm;
+	//bool instanced;
+	//bool normalMap;
+	//bool multiTex;
 };
 
 OUTPUT_VERTEX main(INPUT_VERTEX fromVertexBuffer)
@@ -32,20 +39,22 @@ OUTPUT_VERTEX main(INPUT_VERTEX fromVertexBuffer)
 	OUTPUT_VERTEX newVert = (OUTPUT_VERTEX)0;
 
 	newVert.projectedCoordinate.w = 1;
-
-	uint row = fromVertexBuffer.instanceID / 10;
-	uint offset = fromVertexBuffer.instanceID % 10;
-
 	newVert.projectedCoordinate.xyz = fromVertexBuffer.coordinate.xyz;
-	newVert.projectedCoordinate.x -= 2.0f * row;
-	newVert.projectedCoordinate.z += 2.0f * offset;
+
 	newVert.projectedCoordinate = mul(newVert.projectedCoordinate, world);
 	newVert.worldPos = newVert.projectedCoordinate;
+	if (bool(inm.x))
+	{
+		newVert.projectedCoordinate.xyz += fromVertexBuffer.instanceID * offset.xyz;
+	}
 	newVert.projectedCoordinate = mul(newVert.projectedCoordinate, view);
 	newVert.projectedCoordinate = mul(newVert.projectedCoordinate, proj);
-	//newVert.colorOut = fromVertexBuffer.color;
 	newVert.texOut = fromVertexBuffer.tex;
 	newVert.norm = mul(float4(fromVertexBuffer.norm, 0), world).xyz;
+	newVert.tangent = mul(fromVertexBuffer.tangent, world);
+
+	newVert.normalMap = bool(inm.y);
+	newVert.multiTex = bool(inm.z);
 
 	return newVert;
 }

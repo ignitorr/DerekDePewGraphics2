@@ -40,6 +40,8 @@ using namespace DirectX;
 #include "Multitexture_PS.csh"
 #include "NormalMap_VS.csh"
 #include "NormalMap_PS.csh"
+#include "Master_VS.csh"
+#include "Master_PS.csh"
 
 #define BACKBUFFER_WIDTH	1200
 #define BACKBUFFER_HEIGHT	800
@@ -92,6 +94,69 @@ class DEMO_APP
 
 	// END SKYBOX
 
+	// WIP, used for more dyanmic updating
+	struct MESH
+	{
+		bool						initialized = false;
+		bool						normalMap = false;
+		bool						multiTexture = false;
+
+		bool						instanced = false;
+		unsigned int				instanceCount;
+		XMFLOAT4					instanceOffset;
+
+		XMMATRIX					modifierMatrix = XMMatrixIdentity();
+		XMMATRIX					localPos;
+		MESH						*parentMesh = nullptr; //used for multiplying localPos
+
+		ID3D11Buffer				*vBuffer;
+		ID3D11Buffer				*iBuffer;
+		unsigned int				numVertex;
+		unsigned int				numIndex;
+
+		ID3D11ShaderResourceView	*meshTexture[2];
+		ID3D11ShaderResourceView	*meshNormalMap;
+		ID3D11SamplerState			*meshSampler;
+
+		XMMATRIX getTransformedMatrix()
+		{
+			if (parentMesh != nullptr)
+			{
+				return localPos * parentMesh->getTransformedMatrix();
+			}
+			else
+			{
+				return localPos;
+			}
+		}
+
+		bool Shutdown()
+		{
+			if (!initialized)
+				return false;
+			vBuffer->Release();
+			iBuffer->Release();
+			meshTexture[0]->Release();
+			meshSampler->Release();
+			if (multiTexture)
+				meshTexture[1]->Release();
+			if (normalMap)
+				meshNormalMap->Release();
+
+			return true;
+		}
+	};
+
+	///////////////////
+	// NEW MESH DATA //
+	///////////////////
+	ID3D11VertexShader			*masterVS;
+	ID3D11PixelShader			*masterPS;
+	ID3D11Buffer				*masterConstantBuffer;
+
+	MESH						meshes[MESH_COUNT];
+	unsigned int				meshIndex = 0;
+
 	///////////////////////
 	// GENERAL MESH DATA //
 	///////////////////////
@@ -123,16 +188,6 @@ class DEMO_APP
 	///////////////////////
 	// RENDER TO TEXTURE //
 	///////////////////////
-	/*
-	ID3D11Texture2D				*renderTargetTextureMap;
-	ID3D11RenderTargetView		*renderTargetViewMap;
-	ID3D11ShaderResourceView	*shaderResourceViewMap;
-	XMMATRIX					mapView;
-	XMMATRIX					mapProjection;
-	ID3D11Buffer				*squareVBuffer;
-	ID3D11Buffer				*squareIBuffer;
-	ID3D11DepthStencilView		*rttDSV;
-	*/
 	D3D11_VIEWPORT				rtViewport;
 	ID3D11RenderTargetView		*rtRTV;
 	ID3D11ShaderResourceView	*rtSRV;
@@ -236,6 +291,18 @@ class DEMO_APP
 		XMMATRIX proj;
 		XMFLOAT3 cameraPos;
 	};
+
+	struct VS_MASTER_DATA
+	{
+		XMMATRIX world;
+		XMMATRIX view;
+		XMMATRIX proj;
+		XMFLOAT4 offset;
+		XMFLOAT4 inmData;
+		//bool instanced;
+		//bool normalMap;
+		//bool multiTex;
+	};
 	//////////////////////////////////
 	// PIXEL CONSTANT BUFFER STRUCT //
 	//////////////////////////////////
@@ -277,13 +344,21 @@ class DEMO_APP
 		}
 	};
 
+
 	bool CalculateTangents(SIMPLE_VERTEX verts[], short indices[], unsigned int numVerts, unsigned int numInds);
 	bool LoadBuffers(SIMPLE_VERTEX verts[], short indices[], unsigned int numVerts, unsigned int numInds, ID3D11Buffer **vertBuffer, ID3D11Buffer **indBuffer);
 	bool LoadTexture(const wchar_t *texturePath, ID3D11ShaderResourceView **textureRV, ID3D11SamplerState **textureSampler);
 	bool LoadMeshFromHeader(const OBJ_VERT verts[], const unsigned int indices[], unsigned int numVerts, unsigned int numInd, const wchar_t *texturePath);
-	bool LoadOBJ(const char *filePath, const wchar_t *texturePath, ID3D11Buffer **vertBuffer, ID3D11Buffer **indBuffer, ID3D11ShaderResourceView **textureRV, ID3D11SamplerState **textureSampler, bool updateIndex, unsigned int *index);
+	bool LoadOBJ(const char *filePath, const wchar_t *texturePath, ID3D11Buffer **vertBuffer, ID3D11Buffer **indBuffer, unsigned int *numberVerts, unsigned int *numberInds, ID3D11ShaderResourceView **textureRV, ID3D11SamplerState **textureSampler, bool updateIndex, unsigned int *index);
 	bool CreateIndexedCube(float scale, const wchar_t *texturePath, ID3D11Buffer **vertBuffer, ID3D11Buffer **indBuffer, ID3D11ShaderResourceView **textureRV, ID3D11SamplerState **textureSampler, XMMATRIX *world, bool updateIndex, unsigned int *index);
 	bool CreateInstancedCube(float scale, const wchar_t *texturePath, unsigned int count, XMFLOAT3 offset);
+
+	bool CreateMeshFromOBJ(const char *filePath, const wchar_t *texturePath, MESH *parent);
+	bool SetMeshMultitexture(unsigned int mesh, bool multi, const wchar_t *texturePath);
+	bool SetMeshNormalMap(unsigned int mesh, bool normal, const wchar_t *texturePath);
+	bool SetMeshInstancing(unsigned int mesh, bool instanced, XMFLOAT4 offset, unsigned int numInstances);
+
+	bool InitializeMeshes();
 public:
 	DEMO_APP(HINSTANCE hinst, WNDPROC proc);
 
@@ -431,7 +506,7 @@ bool DEMO_APP::LoadTexture(const wchar_t *texturePath, ID3D11ShaderResourceView 
 // Option to update index.
 // (for array systems for regular models / instanced models.)
 //////////////////////////////////////////////////////////////////////
-bool DEMO_APP::LoadOBJ(const char *filePath, const wchar_t *texturePath, ID3D11Buffer **vertBuffer, ID3D11Buffer **indBuffer, ID3D11ShaderResourceView **textureRV, ID3D11SamplerState **textureSampler, bool updateIndex = false, unsigned int *index = nullptr)
+bool DEMO_APP::LoadOBJ(const char *filePath, const wchar_t *texturePath, ID3D11Buffer **vertBuffer, ID3D11Buffer **indBuffer, unsigned int *numberVerts, unsigned int *numberInds, ID3D11ShaderResourceView **textureRV, ID3D11SamplerState **textureSampler, bool updateIndex = false, unsigned int *index = nullptr)
 {
 	// abort if file not found
 	FILE *file = fopen(filePath, "r");
@@ -554,11 +629,14 @@ bool DEMO_APP::LoadOBJ(const char *filePath, const wchar_t *texturePath, ID3D11B
 	// load the model's texture
 	LoadTexture(texturePath, textureRV, textureSampler);
 
+	*numberVerts = normals.size();
+	*numberInds = vertIndices.size();
+
 	if (updateIndex)
 	{
 		//update number arrays
-		numVertices[currentIndex] = normals.size();
-		numIndices[currentIndex] = vertIndices.size();
+		//numVertices[currentIndex] = normals.size();
+		//numIndices[currentIndex] = vertIndices.size();
 		*index += 1;
 	}
 	return true;
@@ -736,6 +814,99 @@ bool DEMO_APP::CreateInstancedCube(float scale, const wchar_t *texturePath, unsi
 	return true;
 }
 
+
+bool DEMO_APP::CreateMeshFromOBJ(const char *filePath, const wchar_t *texturePath, MESH *parent = nullptr)
+{
+	if (parent != nullptr)
+	{
+		meshes[meshIndex].parentMesh = parent;
+	}
+	LoadOBJ(filePath, texturePath, &meshes[meshIndex].vBuffer, &meshes[meshIndex].iBuffer, &meshes[meshIndex].numVertex, &meshes[meshIndex].numIndex, &meshes[meshIndex].meshTexture[0], &meshes[meshIndex].meshSampler);
+	meshes[meshIndex].initialized = true;
+	return true;
+}
+
+bool DEMO_APP::SetMeshMultitexture(unsigned int mesh, bool multi, const wchar_t *texturePath = nullptr)
+{
+	if (meshes[mesh].multiTexture)
+		meshes[mesh].meshTexture[1]->Release();
+
+	meshes[mesh].multiTexture = multi;
+	if (multi)
+	{
+		CreateDDSTextureFromFile(device, texturePath, nullptr, &meshes[mesh].meshTexture[1]);
+	}
+	return true;
+}
+
+bool DEMO_APP::SetMeshNormalMap(unsigned int mesh, bool normal, const wchar_t *texturePath = nullptr)
+{
+	if (meshes[mesh].normalMap)
+		meshes[mesh].meshNormalMap->Release();
+
+	meshes[mesh].normalMap = normal;
+	if (normal)
+	{
+		CreateDDSTextureFromFile(device, texturePath, nullptr, &meshes[mesh].meshNormalMap);
+	}
+	return true;
+}
+
+bool DEMO_APP::SetMeshInstancing(unsigned int mesh, bool instanced, XMFLOAT4 offset = XMFLOAT4(0, 0, 0, 0), unsigned int numInstances = 0)
+{
+	meshes[mesh].instanced = instanced;
+	meshes[mesh].instanceCount = numInstances;
+	meshes[mesh].instanceOffset = offset;
+
+	return true;
+}
+
+bool DEMO_APP::InitializeMeshes()
+{
+	// MULTI TEX CUBE //
+	mtWorld = XMMatrixIdentity() * XMMatrixTranslation(4, 3.5f, 2);
+	CreateIndexedCube(1.0f, L"stoneMultiTex.dds", &mtVBuffer, &mtIBuffer, &multiTextureRVs[0], &multiSampler, &mtWorld);
+	CreateDDSTextureFromFile(device, L"dirtMultiTex.dds", nullptr, &multiTextureRVs[1]);
+
+	// NORMAL MAP CUBE //
+
+	normalWorld = XMMatrixIdentity() * XMMatrixTranslation(4, 3.5f, -2);
+	CreateIndexedCube(1.0f, L"stoneMultiTex.dds", &normalVBuffer, &normalIBuffer, &normalTextureRVs[0], &normalSampler, &normalWorld);
+	CreateDDSTextureFromFile(device, L"stoneNormal.dds", nullptr, &normalTextureRVs[1]);
+
+
+	// NEW MESH TESTING //
+	meshes[meshIndex].modifierMatrix = XMMatrixRotationZ(1);
+	meshes[meshIndex].localPos = XMMatrixIdentity() * XMMatrixTranslation(0, 0, -5);
+	CreateIndexedCube(1.0f, L"stoneMultiTex.dds", &meshes[meshIndex].vBuffer, &meshes[meshIndex].iBuffer, &meshes[meshIndex].meshTexture[0], &meshes[meshIndex].meshSampler, &meshes[meshIndex].localPos);
+	meshes[meshIndex].numVertex = 24;
+	meshes[meshIndex].numIndex = 36;
+	SetMeshMultitexture(meshIndex, true, L"dirtMultiTex.dds");
+	SetMeshNormalMap(meshIndex, true, L"stoneNormal.dds");
+	SetMeshInstancing(meshIndex, true, XMFLOAT4(0, 0, -1.5f, 0), 10);
+
+	meshes[meshIndex].initialized = true;
+	meshIndex++;
+
+	meshes[meshIndex].localPos = XMMatrixIdentity() * XMMatrixTranslation(1, 0, 0);
+	CreateIndexedCube(0.5f, L"stoneMultiTex.dds", &meshes[meshIndex].vBuffer, &meshes[meshIndex].iBuffer, &meshes[meshIndex].meshTexture[0], &meshes[meshIndex].meshSampler, &meshes[meshIndex].localPos);
+	meshes[meshIndex].numVertex = 24;
+	meshes[meshIndex].numIndex = 36;
+	SetMeshMultitexture(meshIndex, true, L"dirtMultiTex.dds");
+	SetMeshNormalMap(meshIndex, true, L"stoneNormal.dds");
+	meshes[meshIndex].parentMesh = &meshes[0];
+
+	meshes[meshIndex].initialized = true;
+	meshIndex++;
+
+	meshes[meshIndex].localPos = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * XMMatrixTranslation(13.0f, 5.0f, 0.0f);
+	CreateMeshFromOBJ("spacestation.obj", L"spacestation_diffuse.dds");
+	meshIndex++;
+
+	return true;
+}
+
+
 //************************************************************
 //************ CREATION OF OBJECTS & RESOURCES ***************
 //************************************************************
@@ -848,6 +1019,9 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	device->CreateVertexShader(NormalMap_VS, sizeof(NormalMap_VS), NULL, &normalVS);
 	device->CreatePixelShader(NormalMap_PS, sizeof(NormalMap_PS), NULL, &normalPS);
 
+	device->CreateVertexShader(Master_VS, sizeof(Master_VS), NULL, &masterVS);
+	device->CreatePixelShader(Master_PS, sizeof(Master_PS), NULL, &masterPS);
+
 	// CREATE INPUT LAYOUT
 	D3D11_INPUT_ELEMENT_DESC vLayout[] =
 	{
@@ -875,35 +1049,32 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	cbDesc.ByteWidth = sizeof(PS_BUFFER_DATA);
 	device->CreateBuffer(&cbDesc, NULL, &pixelConstantBuffer);
 
+	// MASTER CONSTANT BUFFER
+	cbDesc.ByteWidth = sizeof(VS_MASTER_DATA);
+	device->CreateBuffer(&cbDesc, NULL, &masterConstantBuffer);
+
 	///////////////////////////////////
 	// LOAD MESHES AND THEIR BUFFERS //
 	///////////////////////////////////
 	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(4.0f, 0.0f, 0.0f);
 	//LoadMeshFromHeader(Barrel_data, Barrel_indicies, ARRAYSIZE(Barrel_data), ARRAYSIZE(Barrel_indicies), L"barrel.dds");
-	LoadOBJ("Barrel.obj", L"barrel.dds", &vertexBuffers[currentIndex], &indexBuffers[currentIndex], &textureRVs[currentIndex], &textureSamplers[currentIndex], true, &currentIndex);
+	LoadOBJ("Barrel.obj", L"barrel.dds", &vertexBuffers[currentIndex], &indexBuffers[currentIndex], &numVertices[currentIndex], &numIndices[currentIndex], &textureRVs[currentIndex], &textureSamplers[currentIndex], true, &currentIndex);
 	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(3.0f, 2.0f, 0.0f);
-	LoadOBJ("Barrel.obj", L"barrel.dds", &vertexBuffers[currentIndex], &indexBuffers[currentIndex], &textureRVs[currentIndex], &textureSamplers[currentIndex], true, &currentIndex);
+	LoadOBJ("Barrel.obj", L"barrel.dds", &vertexBuffers[currentIndex], &indexBuffers[currentIndex], &numVertices[currentIndex], &numIndices[currentIndex], &textureRVs[currentIndex], &textureSamplers[currentIndex], true, &currentIndex);
 	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(5.0f, 2.0f, 0.0f);
-	LoadOBJ("Barrel.obj", L"barrel.dds", &vertexBuffers[currentIndex], &indexBuffers[currentIndex], &textureRVs[currentIndex], &textureSamplers[currentIndex], true, &currentIndex);
+	LoadOBJ("Barrel.obj", L"barrel.dds", &vertexBuffers[currentIndex], &indexBuffers[currentIndex], &numVertices[currentIndex], &numIndices[currentIndex], &textureRVs[currentIndex], &textureSamplers[currentIndex], true, &currentIndex);
 	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(4.0f, 4.0f, 0.0f);
-	LoadOBJ("Barrel.obj", L"barrel.dds", &vertexBuffers[currentIndex], &indexBuffers[currentIndex], &textureRVs[currentIndex], &textureSamplers[currentIndex], true, &currentIndex);
+	LoadOBJ("Barrel.obj", L"barrel.dds", &vertexBuffers[currentIndex], &indexBuffers[currentIndex], &numVertices[currentIndex], &numIndices[currentIndex], &textureRVs[currentIndex], &textureSamplers[currentIndex], true, &currentIndex);
 	worldMatrices[currentIndex] = XMMatrixScaling(15.0f, 2.0f, 15.0f) * XMMatrixIdentity() * XMMatrixTranslation(0.0f, 9.0f, 0.0f);
 	LoadMeshFromHeader(test_pyramid_data, test_pyramid_indicies, ARRAYSIZE(test_pyramid_data), ARRAYSIZE(test_pyramid_indicies), L"barrel.dds");
 
 	worldMatrices[currentIndex] = XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixIdentity() * XMMatrixTranslation(-5.0f, 0.0f, 0.0f);
-	bool result = LoadOBJ("penguin.obj", L"peng.dds", &vertexBuffers[currentIndex], &indexBuffers[currentIndex], &textureRVs[currentIndex], &textureSamplers[currentIndex], true, &currentIndex);
-	worldMatrices[currentIndex] = XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixIdentity() * XMMatrixTranslation(-7.0f, 0.0f, 0.0f);
-	LoadMeshFromHeader(penguin_data, penguin_indicies, ARRAYSIZE(penguin_data), ARRAYSIZE(penguin_indicies), L"peng.dds");
-
-	//worldMatrices[currentIndex] = XMMatrixIdentity() * XMMatrixTranslation(-2.0f, 0.0f, 0.0f);
-	//CreateIndexedCube(0.5f, L"barrel.dds", &vertexBuffers[currentIndex], &indexBuffers[currentIndex], &textureRVs[currentIndex], &textureSamplers[currentIndex], &worldMatrices[currentIndex], true, &currentIndex);
+	bool result = LoadOBJ("penguin.obj", L"peng.dds", &vertexBuffers[currentIndex], &indexBuffers[currentIndex], &numVertices[currentIndex], &numIndices[currentIndex], &textureRVs[currentIndex], &textureSamplers[currentIndex], true, &currentIndex);
+	//worldMatrices[currentIndex] = XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixIdentity() * XMMatrixTranslation(-7.0f, 0.0f, 0.0f);
+	//LoadMeshFromHeader(penguin_data, penguin_indicies, ARRAYSIZE(penguin_data), ARRAYSIZE(penguin_indicies), L"peng.dds");
 
 	instanceMatrices[currentInstanceIndex] = XMMatrixIdentity() * XMMatrixTranslation(0.0f, 3.0f, 0.0f);
 	CreateInstancedCube(0.5f, L"crate1_diffuse.dds", 2500, XMFLOAT3(0, 0, 2));
-
-	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * XMMatrixTranslation(13.0f, 5.0f, 0.0f);
-	//LoadOBJ("asteroid.obj", L"asteroid_diffuse.dds", &vertexBuffers[currentIndex], &indexBuffers[currentIndex], &textureRVs[currentIndex], &textureSamplers[currentIndex], true, &currentIndex);
-	LoadOBJ("spacestation.obj", L"spacestation_diffuse.dds", &vertexBuffers[currentIndex], &indexBuffers[currentIndex], &textureRVs[currentIndex], &textureSamplers[currentIndex], true, &currentIndex);
 
 	//////////////////////
 	// END MESH LOADING //
@@ -933,32 +1104,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	psData.spot[0].innerConeRatio = 0.98f;
 
 
-	// SKYBOX CODE:
-	/*
-	regularRDesc.FillMode = D3D11_FILL_SOLID;
-	regularRDesc.CullMode = D3D11_CULL_FRONT;
-	regularRDesc.FrontCounterClockwise = true;
-	regularRDesc.DepthBias = false;
-	regularRDesc.DepthBiasClamp = 0;
-	regularRDesc.SlopeScaledDepthBias = 0;
-	regularRDesc.DepthClipEnable = true;
-	regularRDesc.ScissorEnable = true;
-	regularRDesc.MultisampleEnable = false;
-	regularRDesc.AntialiasedLineEnable = false;
-
-	skyboxRDesc.FillMode = D3D11_FILL_SOLID;
-	skyboxRDesc.CullMode = D3D11_CULL_NONE;
-	skyboxRDesc.FrontCounterClockwise = true;
-	skyboxRDesc.DepthBias = false;
-	skyboxRDesc.DepthBiasClamp = 0;
-	skyboxRDesc.SlopeScaledDepthBias = 0;
-	skyboxRDesc.DepthClipEnable = false;
-	skyboxRDesc.ScissorEnable = true;
-	skyboxRDesc.MultisampleEnable = false;
-	skyboxRDesc.AntialiasedLineEnable = false;
-
-	device->CreateRasterizerState(&regularRDesc, &rState);
-	*/
+	// SKYBOX
 	skyboxM = XMMatrixIdentity();
 	CreateIndexedCube((float)SKYBOX_SCALE, L"skyBox.dds", &skyboxVBuffer, &skyboxIBuffer, &skyboxRV, &skyboxSampler, &skyboxM);
 
@@ -1064,17 +1210,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	CreateIndexedCube(1.0f, L"crate1_diffuse.dds", &rtVBuffer, &rtIBuffer, &rtCubeSRV, &rtCubeSampler, &rtWorld);
 
-	// MULTI TEX CUBE //
-	mtWorld = XMMatrixIdentity() * XMMatrixTranslation(4, 3.5f, 2);
-	CreateIndexedCube(1.0f, L"stoneMultiTex.dds", &mtVBuffer, &mtIBuffer, &multiTextureRVs[0], &multiSampler, &mtWorld);
-	CreateDDSTextureFromFile(device, L"dirtMultiTex.dds", nullptr, &multiTextureRVs[1]);
-
-	// NORMAL MAP CUBE //
-	
-	normalWorld = XMMatrixIdentity() * XMMatrixTranslation(4, 3.5f, -2);
-	CreateIndexedCube(1.0f, L"stoneMultiTex.dds", &normalVBuffer, &normalIBuffer, &normalTextureRVs[0], &normalSampler, &normalWorld);
-	CreateDDSTextureFromFile(device, L"stoneNormal.dds", nullptr, &normalTextureRVs[1]);
-	
+	InitializeMeshes();
 }
 
 //************************************************************
@@ -1368,10 +1504,59 @@ bool DEMO_APP::Run()
 	context->Unmap(vertexConstantBuffer, NULL);
 
 	context->DrawIndexed(36, 0, 0);
-	
-
 
 	// END NORMAL MAPPING //
+
+	// NEW MESH SYSTEM //
+
+	context->VSSetShader(masterVS, 0, 0);
+	context->PSSetShader(masterPS, 0, 0);
+	context->VSSetConstantBuffers(0, 1, &masterConstantBuffer);
+
+	VS_MASTER_DATA masterData;
+	masterData.view = viewM;
+	masterData.proj = projM;
+
+
+	XMMATRIX spinningTest = XMMatrixRotationY(timer.Delta() * 2.0f);
+	for (int i = 0; i < meshIndex; i++)
+	{
+		context->IASetVertexBuffers(0, 1, &meshes[i].vBuffer, &strides, &offsets);
+		context->IASetIndexBuffer(meshes[i].iBuffer, DXGI_FORMAT_R16_UINT, 0);
+		if (meshes[i].multiTexture)
+		{
+			context->PSSetShaderResources(0, 2, meshes[i].meshTexture);
+		}
+		else
+		{
+			context->PSSetShaderResources(0, 1, &meshes[i].meshTexture[0]);
+		}
+		if (meshes[i].normalMap)
+			context->PSSetShaderResources(2, 1, &meshes[i].meshNormalMap);
+
+		context->PSSetSamplers(0, 1, &meshes[i].meshSampler);
+
+		//meshes[i].localPos = (meshes[i].modifierMatrix) * meshes[i].localPos;
+		meshes[i].localPos = spinningTest * meshes[i].localPos;
+		masterData.world = meshes[i].getTransformedMatrix();
+
+		masterData.offset = meshes[i].instanceOffset;
+		masterData.inmData = XMFLOAT4((float)meshes[i].instanced, (float)meshes[i].normalMap, (float)meshes[i].multiTexture, 0);
+
+		context->Map(masterConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
+		memcpy(vsSub.pData, &masterData, sizeof(masterData));
+		context->Unmap(masterConstantBuffer, NULL);
+
+		if (meshes[i].instanced)
+		{
+			context->DrawIndexedInstanced(meshes[i].numIndex, meshes[i].instanceCount, 0, 0, 0);
+		}
+		else
+		{
+			context->DrawIndexed(meshes[i].numIndex, 0, 0);
+		}
+
+	}
 
 	swap->Present(0, 0);
 	return true;
@@ -1450,6 +1635,15 @@ bool DEMO_APP::ShutDown()
 	normalSampler->Release();
 	normalIBuffer->Release();
 	normalVBuffer->Release();
+
+	// release MESH data
+	for (int i = 0; i < meshIndex; i++)
+	{
+		meshes[i].Shutdown();
+	}
+	masterVS->Release();
+	masterPS->Release();
+	masterConstantBuffer->Release();
 	
 
 	UnregisterClass(L"DirectXApplication", application);

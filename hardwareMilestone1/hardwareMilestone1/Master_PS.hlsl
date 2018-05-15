@@ -1,4 +1,5 @@
-Texture2D tex : register(t0);
+Texture2D tex[2] : register(t0);
+Texture2D normalTex : register(t2);
 SamplerState sampl : register(s0);
 
 #define D_LIGHTS 1
@@ -41,20 +42,6 @@ cbuffer THIS_IS_VRAM : register(b0)
 	spot_light sLights[S_LIGHTS];
 };
 
-/*
-cbuffer THIS_IS_VRAM : register(b0)
-{
-	matrix world;
-	matrix view;
-	matrix proj;
-	float4 lightDirection;
-	float4 lightColor;
-	float4 lightPos;
-	float lightRad;
-	float coneRatio;
-
-};
-*/
 
 struct OUTPUT_VERTEX
 {
@@ -62,14 +49,47 @@ struct OUTPUT_VERTEX
 	float4 projectedCoordinate : SV_POSITION;
 	float4 worldPos : WORLDPOS;
 	float3 norm : NORMAL;
+	float3 tangent : TANGENT;
+	bool normalMap : NMAP;
+	bool multiTex : MULTI;
 };
 
 float4 main(OUTPUT_VERTEX vert) : SV_TARGET
 {
 	float4 lightFinals[D_LIGHTS + P_LIGHTS + S_LIGHTS];
 
+	float4 final;
+	if (vert.multiTex)
+	{
+		float4 tex0 = tex[0].Sample(sampl, vert.texOut);
+		float4 tex1 = tex[1].Sample(sampl, vert.texOut);
+		final = tex0 * tex1 * 2.0f;
+	}
+	else
+	{
+		final = tex[0].Sample(sampl, vert.texOut);
+	}
+	// NEW NORMAL MAPPING CODE //
+	if (vert.normalMap)
+	{
 
-	float4 final = tex.Sample(sampl, vert.texOut);
+	float4 normalMap = normalTex.Sample(sampl, vert.texOut);
+	normalMap = 2.0f * normalMap - 1.0f;
+
+	vert.tangent = normalize(vert.tangent - dot(vert.tangent, vert.norm) * vert.norm);
+
+	float3 biTangent = cross(vert.norm, vert.tangent);
+
+	float3x3 textureSpace = float3x3(vert.tangent, biTangent, vert.norm);
+
+	vert.norm = normalize(mul(normalMap, textureSpace));
+	}
+
+
+	// END NORMAL MAPPING CODE //
+
+	//float4 final = tex[0].Sample(sampl, vert.texOut);
+
 	float4 ambient = final * float4(0.15, 0.15, 0.15, 1);
 	
 	uint currentLight = 0;
