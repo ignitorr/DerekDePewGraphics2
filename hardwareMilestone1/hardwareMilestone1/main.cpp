@@ -572,7 +572,7 @@ bool DEMO_APP::LoadOBJ(const char *filePath, const wchar_t *texturePath, ID3D11B
 	}
 
 	// now take the parsed data and convert it to something usable
-	SIMPLE_VERTEX *meshVerts = new SIMPLE_VERTEX[vertIndices.size()];
+	SIMPLE_VERTEX *meshVerts = new SIMPLE_VERTEX[normals.size()];
 	short *meshIndices = new short[vertIndices.size()];
 
 	// fill out the vertex data
