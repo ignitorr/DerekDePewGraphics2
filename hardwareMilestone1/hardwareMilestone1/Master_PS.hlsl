@@ -100,22 +100,31 @@ float4 main(OUTPUT_VERTEX vert) : SV_TARGET
 	
 	uint currentLight = 0;
 
+	float specIntensity = (specularTex.Sample(sampl, vert.texOut)).x;
 	
 	// DIRECTIONAL LIGHTS
 	for (uint i = 0; i < D_LIGHTS; i++)
 	{
-		//final += saturate(dot(normalize(-dLights[i].lightDirection.xyz), normalize(vert.norm)) * dLights[i].lightColor);
-		//final.a = 1;
 		lightFinals[currentLight] = saturate(dot(normalize(-dLights[i].lightDirection.xyz), normalize(vert.norm)) * dLights[i].lightColor);
 
 		// SPECULAR CODE
 		
 		if (vert.specMap)
 		{
+			float3 toCam = vert.camPos;
+			float3 toLight = dLights[i].lightDirection.xyz;
+			float3 reflectionVec = normalize(reflect(-toCam, vert.norm));
+			float spec = dot(reflectionVec, toLight);
+			spec = pow(spec, 64);
+
+			specularFinals[currentLight] = (dLights[i].lightColor * spec * specIntensity);
+
+			/*
 			float4 specularIntensity = specularTex.Sample(sampl, vert.texOut);
 			float3 reflection = normalize(2.0f * vert.norm - dLights[i].lightDirection.xyz);
 			specularFinals[currentLight] = pow(saturate(dot(reflection, vert.camPos)), 1.0f);
 			specularFinals[currentLight] = specularFinals[currentLight] * specularIntensity;
+			*/
 		}
 		
 
@@ -134,10 +143,19 @@ float4 main(OUTPUT_VERTEX vert) : SV_TARGET
 		
 		if (vert.specMap)
 		{
+			float3 toCam = vert.camPos;
+			float3 toLight = normalize(pLights[i].lightPos - vert.worldPos);
+			float3 reflectionVec = normalize(reflect(-toCam, vert.norm));
+			float spec = dot(reflectionVec, toLight);
+			spec = pow(spec, 64);
+
+			specularFinals[currentLight] = (pLights[i].lightColor * spec * specIntensity);
+			/*
 			float4 specularIntensity = specularTex.Sample(sampl, vert.texOut);
 			float3 reflection = normalize(2.0f * vert.norm - lightdir.xyz);
 			specularFinals[currentLight] = pow(saturate(dot(reflection, vert.camPos)), 1.0f);
 			specularFinals[currentLight] = specularFinals[currentLight] * specularIntensity;
+			*/
 		}
 		
 
@@ -162,10 +180,19 @@ float4 main(OUTPUT_VERTEX vert) : SV_TARGET
 		
 		if (vert.specMap)
 		{
+			float3 toCam = vert.camPos;
+			float3 toLight = normalize(sLights[i].lightPos - vert.worldPos);
+			float3 reflectionVec = normalize(reflect(-toCam, vert.norm));
+			float spec = dot(reflectionVec, toLight);
+			spec = pow(spec, 64);
+
+			specularFinals[currentLight] = (sLights[i].lightColor * spec * specIntensity);
+			/*
 			float4 specularIntensity = specularTex.Sample(sampl, vert.texOut);
 			float3 reflection = normalize(2.0f * vert.norm - sLights[i].lightDirection.xyz);
 			specularFinals[currentLight] = pow(saturate(dot(reflection, vert.camPos)), 1.0f);
 			specularFinals[currentLight] = specularFinals[currentLight] * specularIntensity;
+			*/
 		}
 		
 
@@ -181,16 +208,21 @@ float4 main(OUTPUT_VERTEX vert) : SV_TARGET
 	finalcolor.z = 1;
 	finalcolor.w = 1;
 	float4 finalSpec;
-	finalSpec.x = finalSpec.y = finalSpec.z = finalSpec.w = 1;
+	finalSpec.x = finalSpec.y = finalSpec.z = finalSpec.w = 0;
 	for (uint i = 0; i < (D_LIGHTS + P_LIGHTS + S_LIGHTS); i++)
 	{
 		finalcolor += saturate(lightFinals[i]);
 
-		//finalSpec += saturate(specularFinals[i]);
+		if (vert.specMap)
+		{
+			finalSpec += specularFinals[i];
+		}
 	}
+
 	if (vert.specMap)
 	{
-		return ((final * finalcolor) - final + ambient) * finalSpec;
+		finalSpec = finalSpec / (D_LIGHTS + P_LIGHTS + S_LIGHTS);
+		return ((final * finalcolor) - final + ambient) + finalSpec;
 	}
 	return (final * finalcolor) - final + ambient;
 	//return saturate(final + ambient);

@@ -902,13 +902,26 @@ bool DEMO_APP::InitializeMeshes()
 	CreateIndexedCube(1.0f, L"stoneMultiTex.dds", &meshes[meshIndex].vBuffer, &meshes[meshIndex].iBuffer, &meshes[meshIndex].meshTexture[0], &meshes[meshIndex].meshSampler, &meshes[meshIndex].localPos);
 	meshes[meshIndex].numVertex = 24;
 	meshes[meshIndex].numIndex = 36;
-	SetMeshMultitexture(meshIndex, true, L"dirtMultiTex.dds");
+	//SetMeshMultitexture(meshIndex, true, L"dirtMultiTex.dds");
 	SetMeshNormalMap(meshIndex, true, L"stoneNormal.dds");
 	SetMeshSpecularMap(meshIndex, true, L"stoneSpecTEST.dds");
 	SetMeshInstancing(meshIndex, true, XMFLOAT4(0, 0, -1.5f, 0), 10);
 
 	meshes[meshIndex].initialized = true;
 	meshIndex++;
+
+	meshes[meshIndex].localPos = XMMatrixIdentity() * XMMatrixTranslation(-1.1, 0, -5);
+	CreateIndexedCube(1.0f, L"stoneMultiTex.dds", &meshes[meshIndex].vBuffer, &meshes[meshIndex].iBuffer, &meshes[meshIndex].meshTexture[0], &meshes[meshIndex].meshSampler, &meshes[meshIndex].localPos);
+	meshes[meshIndex].numVertex = 24;
+	meshes[meshIndex].numIndex = 36;
+	//SetMeshMultitexture(meshIndex, true, L"dirtMultiTex.dds");
+	SetMeshNormalMap(meshIndex, true, L"stoneNormal.dds");
+	//SetMeshSpecularMap(meshIndex, true, L"stoneSpecTEST.dds");
+	//SetMeshInstancing(meshIndex, true, XMFLOAT4(0, 0, -1.5f, 0), 10);
+
+	meshes[meshIndex].initialized = true;
+	meshIndex++;
+
 
 	meshes[meshIndex].modifierMatrix = XMMatrixIdentity() * XMMatrixRotationZ(XMConvertToRadians(1.0f));
 	meshes[meshIndex].localPos = XMMatrixIdentity() * XMMatrixTranslation(1, 0, 0);
@@ -924,7 +937,7 @@ bool DEMO_APP::InitializeMeshes()
 
 	meshes[meshIndex].localPos = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * XMMatrixTranslation(13.0f, 5.0f, 0.0f);
 	CreateMeshFromOBJ("spacestation.obj", L"spacestation_diffuse.dds");
-//	SetMeshSpecularMap(meshIndex, true, L"spacestation_specular.dds");
+	SetMeshSpecularMap(meshIndex, true, L"spacestation_specular.dds");
 	meshIndex++;
 
 	return true;
