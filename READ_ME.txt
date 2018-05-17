@@ -6,19 +6,19 @@ Zoom in/out with up/down arrows
 
 Notes for grading:
 
-Point light moves up/down between the barrels on the right.
+Combining 2 functional lights on the same geometry:
+Best visible on the cubes visible in the right side viewport or behind the left side.
+Directional light + point light + spotlight occasionally hits the cubes
+(I had this one last milestone just forgot to have it checked for grading)
 
-Spot light moves & rotates, best seen by looking at the plane in the sky from below.
 
-The white cube to the left of the barrels shows the Render To Texture
+Lights demonstrate proper specular:
+Again visible on the same cube as the last part, the left one has specular + normal map
+The right one has just a normal map. 
+Specular is more visible when you get closer and can see the details in the rock
 
-Cube in front of barrels shows normal mapping.
+Multiple viewport scenes
+Pretty obvious but the camera is changed in both of them when you move.
+It's the same scene just rendered from different views to the viewports
 
-Cube behind barrels shows multi texturing. 
-(stone texture from normal mapping + grass/dirt texture)
 
-The rows of crates are done with 1 instancing call (DrawIndexedInstanced)
-
-Penguin with HFILE above is the one loaded in with Obj2Header.
-
-Penguin without HFILE is my own LoadOBJ function. Same goes for the big spaceship on the right.
