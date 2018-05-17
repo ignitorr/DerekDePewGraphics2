@@ -905,7 +905,7 @@ bool DEMO_APP::InitializeMeshes()
 	//SetMeshMultitexture(meshIndex, true, L"dirtMultiTex.dds");
 	SetMeshNormalMap(meshIndex, true, L"stoneNormal.dds");
 	SetMeshSpecularMap(meshIndex, true, L"stoneSpecTEST.dds");
-	SetMeshInstancing(meshIndex, true, XMFLOAT4(0, 0, -1.5f, 0), 10);
+	//SetMeshInstancing(meshIndex, true, XMFLOAT4(0, 0, -1.5f, 0), 10);
 
 	meshes[meshIndex].initialized = true;
 	meshIndex++;
@@ -1141,8 +1141,8 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	psData.directional[0].lightColor = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
 
 	psData.point[0].lightColor = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-	psData.point[0].lightPos = XMFLOAT4(3.75f, 2.0f, 0.0f, 1.0f);
-	psData.point[0].lightRad = 5.0f;
+	psData.point[0].lightPos = XMFLOAT4(-0.55f, 0.0f, -3.5f, 1.0f);
+	psData.point[0].lightRad = 2.5f;
 
 	psData.spot[0].lightDirection = XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f);
 	psData.spot[0].lightColor = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
@@ -1348,11 +1348,11 @@ bool DEMO_APP::Run()
 
 	// NEXT POINT LIGHT
 	// starting Y = 2, max = 4
-	if (psData.point[0].lightPos.y > 4.0f)
+	if (psData.point[0].lightPos.y > 2.0f)
 	{
 		pLightMove = -1;
 	}
-	if (psData.point[0].lightPos.y < 2.0f)
+	if (psData.point[0].lightPos.y < 0.0f)
 	{
 		pLightMove = 1;
 	}
