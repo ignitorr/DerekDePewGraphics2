@@ -17,7 +17,9 @@ struct OUTPUT_VERTEX
 	float3 norm : NORMAL;
 	float3 tangent : TANGENT;
 	bool normalMap : NMAP;
+	bool specMap : SPEC;
 	bool multiTex : MULTI;
+	float3 camPos : CAMPOS;
 };
 
 cbuffer THIS_IS_VRAM : register(b0)
@@ -27,6 +29,7 @@ cbuffer THIS_IS_VRAM : register(b0)
 	matrix proj;
 	float4 offset;
 	float4 inm;
+	float4 camPos;
 	//bool instanced;
 	//bool normalMap;
 	//bool multiTex;
@@ -54,7 +57,12 @@ OUTPUT_VERTEX main(INPUT_VERTEX fromVertexBuffer)
 	newVert.tangent = mul(fromVertexBuffer.tangent, world);
 
 	newVert.normalMap = bool(inm.y);
+	newVert.specMap = bool(inm.w);
 	newVert.multiTex = bool(inm.z);
+
+	//newVert.camPos = (float3)0;
+	newVert.camPos = newVert.worldPos.xyz - camPos.xyz;
+	newVert.camPos = normalize(newVert.camPos);
 
 	return newVert;
 }
