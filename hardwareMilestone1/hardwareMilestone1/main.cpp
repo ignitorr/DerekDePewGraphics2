@@ -896,7 +896,7 @@ bool DEMO_APP::InitializeMeshes()
 
 
 	// NEW MESH TESTING //
-	//meshes[meshIndex].modifierMatrix = XMMatrixRotationZ(XMConvertToRadians(1.0f));
+	//meshes[meshIndex].modifierMatrix = XMMatrixRotationY(XMConvertToRadians(1.0f));
 	meshes[meshIndex].localPos = XMMatrixIdentity() * XMMatrixTranslation(0, 1, -6);
 	CreateIndexedCube(2.0f, L"stoneMultiTex.dds", &meshes[meshIndex].vBuffer, &meshes[meshIndex].iBuffer, &meshes[meshIndex].meshTexture[0], &meshes[meshIndex].meshSampler, &meshes[meshIndex].localPos);
 	meshes[meshIndex].numVertex = 24;
@@ -904,7 +904,7 @@ bool DEMO_APP::InitializeMeshes()
 	//SetMeshMultitexture(&meshes[meshIndex], true, L"dirtMultiTex.dds");
 	SetMeshNormalMap(&meshes[meshIndex], true, L"stoneNormal.dds");
 	SetMeshSpecularMap(&meshes[meshIndex], true, L"stoneSpecTEST.dds");
-	SetMeshInstancing(&meshes[meshIndex], true, XMFLOAT4(0, 0, -3.5f, 0), 10);
+	//SetMeshInstancing(&meshes[meshIndex], true, XMFLOAT4(0, 0, -3.5f, 0), 10);
 
 	meshes[meshIndex].initialized = true;
 	meshIndex++;

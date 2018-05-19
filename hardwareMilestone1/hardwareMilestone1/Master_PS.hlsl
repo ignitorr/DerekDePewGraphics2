@@ -96,7 +96,6 @@ float4 main(OUTPUT_VERTEX vert) : SV_TARGET
 	}
 	// END NORMAL MAPPING CODE //
 
-	//float4 final = tex[0].Sample(sampl, vert.texOut);
 
 	float4 ambient = final * float4(0.15, 0.15, 0.15, 1);
 	
@@ -120,13 +119,6 @@ float4 main(OUTPUT_VERTEX vert) : SV_TARGET
 			spec = pow(spec, SPEC_POWER);
 
 			specularFinals[currentLight] = (dLights[i].lightColor * spec * specIntensity);
-
-			/*
-			float4 specularIntensity = specularTex.Sample(sampl, vert.texOut);
-			float3 reflection = normalize(2.0f * vert.norm - dLights[i].lightDirection.xyz);
-			specularFinals[currentLight] = pow(saturate(dot(reflection, vert.camPos)), 1.0f);
-			specularFinals[currentLight] = specularFinals[currentLight] * specularIntensity;
-			*/
 		}
 		
 
@@ -152,12 +144,6 @@ float4 main(OUTPUT_VERTEX vert) : SV_TARGET
 			spec = pow(spec, SPEC_POWER);
 
 			specularFinals[currentLight] = (pLights[i].lightColor * spec * specIntensity);
-			/*
-			float4 specularIntensity = specularTex.Sample(sampl, vert.texOut);
-			float3 reflection = normalize(2.0f * vert.norm - lightdir.xyz);
-			specularFinals[currentLight] = pow(saturate(dot(reflection, vert.camPos)), 1.0f);
-			specularFinals[currentLight] = specularFinals[currentLight] * specularIntensity;
-			*/
 		}
 		
 
@@ -189,13 +175,7 @@ float4 main(OUTPUT_VERTEX vert) : SV_TARGET
 			spec = pow(spec, SPEC_POWER);
 
 			specularFinals[currentLight] = (sLights[i].lightColor * spec * specIntensity);
-			//specularFinals[currentLight] *= att * edgeAtt;
-			/*
-			float4 specularIntensity = specularTex.Sample(sampl, vert.texOut);
-			float3 reflection = normalize(2.0f * vert.norm - sLights[i].lightDirection.xyz);
-			specularFinals[currentLight] = pow(saturate(dot(reflection, vert.camPos)), 1.0f);
-			specularFinals[currentLight] = specularFinals[currentLight] * specularIntensity;
-			*/
+			//specularFinals[currentLight] *= att * edgeAtt; ask dan if this is needed
 		}
 		
 
@@ -228,5 +208,4 @@ float4 main(OUTPUT_VERTEX vert) : SV_TARGET
 		return ((final * finalcolor) - final + ambient) + finalSpec;
 	}
 	return (final * finalcolor) - final + ambient;
-	//return saturate(final + ambient);
 }

@@ -2,7 +2,6 @@
 struct INPUT_VERTEX
 {
 	float3 coordinate : POSITION;
-	//float4 color : COLOR;
 	float2 tex : TEXCOORD0;
 	float3 norm : NORMAL;
 	float3 tangent : TANGENT;
@@ -30,9 +29,6 @@ cbuffer THIS_IS_VRAM : register(b0)
 	float4 offset;
 	float4 inm;
 	float4 camPos;
-	//bool instanced;
-	//bool normalMap;
-	//bool multiTex;
 };
 
 OUTPUT_VERTEX main(INPUT_VERTEX fromVertexBuffer)
@@ -60,7 +56,6 @@ OUTPUT_VERTEX main(INPUT_VERTEX fromVertexBuffer)
 	newVert.specMap = bool(inm.w);
 	newVert.multiTex = bool(inm.z);
 
-	//newVert.camPos = (float3)0;
 	newVert.camPos = newVert.worldPos.xyz - camPos.xyz;
 	newVert.camPos = normalize(newVert.camPos);
 
