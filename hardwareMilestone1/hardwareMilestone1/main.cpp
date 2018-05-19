@@ -163,6 +163,9 @@ class DEMO_APP
 	MESH						meshes[MESH_COUNT];
 	unsigned int				meshIndex = 0;
 
+	MESH						spaceMeshes[MESH_COUNT];
+	unsigned int				spaceIndex = 0;
+
 	///////////////////////
 	// GENERAL MESH DATA //
 	///////////////////////
@@ -237,6 +240,9 @@ class DEMO_APP
 	XMMATRIX					viewM;
 	XMMATRIX					viewM2;
 	XMMATRIX					projM;
+
+	XMMATRIX					viewMSpace;
+	XMMATRIX					projMSpace;
 
 	XTime						timer;
 
@@ -361,11 +367,11 @@ class DEMO_APP
 	bool CreateIndexedCube(float scale, const wchar_t *texturePath, ID3D11Buffer **vertBuffer, ID3D11Buffer **indBuffer, ID3D11ShaderResourceView **textureRV, ID3D11SamplerState **textureSampler, XMMATRIX *world, bool updateIndex, unsigned int *index);
 	bool CreateInstancedCube(float scale, const wchar_t *texturePath, unsigned int count, XMFLOAT3 offset);
 
-	bool CreateMeshFromOBJ(const char *filePath, const wchar_t *texturePath, MESH *parent);
-	bool SetMeshMultitexture(unsigned int mesh, bool multi, const wchar_t *texturePath);
-	bool SetMeshNormalMap(unsigned int mesh, bool normal, const wchar_t *texturePath);
-	bool SetMeshSpecularMap(unsigned int mesh, bool spec, const wchar_t *texturePath);
-	bool SetMeshInstancing(unsigned int mesh, bool instanced, XMFLOAT4 offset, unsigned int numInstances);
+	bool CreateMeshFromOBJ(MESH *meshArray, unsigned int meshInd, const char *filePath, const wchar_t *texturePath, MESH *parent);
+	bool SetMeshMultitexture(MESH *mesh, bool multi, const wchar_t *texturePath);
+	bool SetMeshNormalMap(MESH *mesh, bool normal, const wchar_t *texturePath);
+	bool SetMeshSpecularMap(MESH *mesh, bool spec, const wchar_t *texturePath);
+	bool SetMeshInstancing(MESH *mesh, bool instanced, XMFLOAT4 offset, unsigned int numInstances);
 
 	bool InitializeMeshes();
 public:
@@ -823,61 +829,54 @@ bool DEMO_APP::CreateInstancedCube(float scale, const wchar_t *texturePath, unsi
 	return true;
 }
 
-bool DEMO_APP::CreateMeshFromOBJ(const char *filePath, const wchar_t *texturePath, MESH *parent = nullptr)
+bool DEMO_APP::CreateMeshFromOBJ(MESH *meshArray, unsigned int meshInd, const char *filePath, const wchar_t *texturePath, MESH *parent = nullptr)
 {
 	if (parent != nullptr)
 	{
-		meshes[meshIndex].parentMesh = parent;
+		meshArray[meshInd].parentMesh = parent;
 	}
-	LoadOBJ(filePath, texturePath, &meshes[meshIndex].vBuffer, &meshes[meshIndex].iBuffer, &meshes[meshIndex].numVertex, &meshes[meshIndex].numIndex, &meshes[meshIndex].meshTexture[0], &meshes[meshIndex].meshSampler);
-	meshes[meshIndex].initialized = true;
+	LoadOBJ(filePath, texturePath, &meshArray[meshInd].vBuffer, &meshArray[meshInd].iBuffer, &meshArray[meshInd].numVertex, &meshArray[meshInd].numIndex, &meshArray[meshInd].meshTexture[0], &meshArray[meshInd].meshSampler);
+	meshArray[meshInd].initialized = true;
 	return true;
 }
 
-bool DEMO_APP::SetMeshMultitexture(unsigned int mesh, bool multi, const wchar_t *texturePath = nullptr)
+bool DEMO_APP::SetMeshMultitexture(MESH *mesh, bool multi, const wchar_t *texturePath = nullptr)
 {
-	if (meshes[mesh].multiTexture)
-		meshes[mesh].meshTexture[1]->Release();
-
-	meshes[mesh].multiTexture = multi;
+	if (mesh->multiTexture)
+	{
+		mesh->meshTexture[1]->Release();
+	}
+	mesh->multiTexture = multi;
 	if (multi)
-	{
-		CreateDDSTextureFromFile(device, texturePath, nullptr, &meshes[mesh].meshTexture[1]);
-	}
+		CreateDDSTextureFromFile(device, texturePath, nullptr, &mesh->meshTexture[1]);
 	return true;
 }
 
-bool DEMO_APP::SetMeshNormalMap(unsigned int mesh, bool normal, const wchar_t *texturePath = nullptr)
+bool DEMO_APP::SetMeshNormalMap(MESH *mesh, bool normal, const wchar_t *texturePath = nullptr)
 {
-	if (meshes[mesh].normalMap)
-		meshes[mesh].meshNormalMap->Release();
-
-	meshes[mesh].normalMap = normal;
+	if (mesh->normalMap)
+		mesh->meshNormalMap->Release();
+	mesh->normalMap = normal;
 	if (normal)
-	{
-		CreateDDSTextureFromFile(device, texturePath, nullptr, &meshes[mesh].meshNormalMap);
-	}
+		CreateDDSTextureFromFile(device, texturePath, nullptr, &mesh->meshNormalMap);
 	return true;
 }
 
-bool DEMO_APP::SetMeshSpecularMap(unsigned int mesh, bool spec, const wchar_t *texturePath = nullptr)
+bool DEMO_APP::SetMeshSpecularMap(MESH *mesh, bool spec, const wchar_t *texturePath = nullptr)
 {
-	if (meshes[mesh].specularMap)
-		meshes[mesh].meshSpecularMap->Release();
-
-	meshes[mesh].specularMap = spec;
+	if (mesh->specularMap)
+		mesh->meshSpecularMap->Release();
+	mesh->specularMap = spec;
 	if (spec)
-	{
-		CreateDDSTextureFromFile(device, texturePath, nullptr, &meshes[mesh].meshSpecularMap);
-	}
+		CreateDDSTextureFromFile(device, texturePath, nullptr, &mesh->meshSpecularMap);
 	return true;
 }
 
-bool DEMO_APP::SetMeshInstancing(unsigned int mesh, bool instanced, XMFLOAT4 offset = XMFLOAT4(0, 0, 0, 0), unsigned int numInstances = 0)
+bool DEMO_APP::SetMeshInstancing(MESH *mesh, bool instanced, XMFLOAT4 offset = XMFLOAT4(0, 0, 0, 0), unsigned int numInstances = 0)
 {
-	meshes[mesh].instanced = instanced;
-	meshes[mesh].instanceCount = numInstances;
-	meshes[mesh].instanceOffset = offset;
+	mesh->instanced = instanced;
+	mesh->instanceCount = numInstances;
+	mesh->instanceOffset = offset;
 
 	return true;
 }
@@ -898,26 +897,14 @@ bool DEMO_APP::InitializeMeshes()
 
 	// NEW MESH TESTING //
 	//meshes[meshIndex].modifierMatrix = XMMatrixRotationZ(XMConvertToRadians(1.0f));
-	meshes[meshIndex].localPos = XMMatrixIdentity() * XMMatrixTranslation(0, 0, -5);
-	CreateIndexedCube(1.0f, L"stoneMultiTex.dds", &meshes[meshIndex].vBuffer, &meshes[meshIndex].iBuffer, &meshes[meshIndex].meshTexture[0], &meshes[meshIndex].meshSampler, &meshes[meshIndex].localPos);
+	meshes[meshIndex].localPos = XMMatrixIdentity() * XMMatrixTranslation(0, 1, -6);
+	CreateIndexedCube(2.0f, L"stoneMultiTex.dds", &meshes[meshIndex].vBuffer, &meshes[meshIndex].iBuffer, &meshes[meshIndex].meshTexture[0], &meshes[meshIndex].meshSampler, &meshes[meshIndex].localPos);
 	meshes[meshIndex].numVertex = 24;
 	meshes[meshIndex].numIndex = 36;
-	//SetMeshMultitexture(meshIndex, true, L"dirtMultiTex.dds");
-	SetMeshNormalMap(meshIndex, true, L"stoneNormal.dds");
-	SetMeshSpecularMap(meshIndex, true, L"stoneSpecTEST.dds");
-	//SetMeshInstancing(meshIndex, true, XMFLOAT4(0, 0, -1.5f, 0), 10);
-
-	meshes[meshIndex].initialized = true;
-	meshIndex++;
-
-	meshes[meshIndex].localPos = XMMatrixIdentity() * XMMatrixTranslation(-1.1, 0, -5);
-	CreateIndexedCube(1.0f, L"stoneMultiTex.dds", &meshes[meshIndex].vBuffer, &meshes[meshIndex].iBuffer, &meshes[meshIndex].meshTexture[0], &meshes[meshIndex].meshSampler, &meshes[meshIndex].localPos);
-	meshes[meshIndex].numVertex = 24;
-	meshes[meshIndex].numIndex = 36;
-	//SetMeshMultitexture(meshIndex, true, L"dirtMultiTex.dds");
-	SetMeshNormalMap(meshIndex, true, L"stoneNormal.dds");
-	//SetMeshSpecularMap(meshIndex, true, L"stoneSpecTEST.dds");
-	//SetMeshInstancing(meshIndex, true, XMFLOAT4(0, 0, -1.5f, 0), 10);
+	//SetMeshMultitexture(&meshes[meshIndex], true, L"dirtMultiTex.dds");
+	SetMeshNormalMap(&meshes[meshIndex], true, L"stoneNormal.dds");
+	SetMeshSpecularMap(&meshes[meshIndex], true, L"stoneSpecTEST.dds");
+	SetMeshInstancing(&meshes[meshIndex], true, XMFLOAT4(0, 0, -3.5f, 0), 10);
 
 	meshes[meshIndex].initialized = true;
 	meshIndex++;
@@ -928,16 +915,16 @@ bool DEMO_APP::InitializeMeshes()
 	CreateIndexedCube(0.5f, L"stoneMultiTex.dds", &meshes[meshIndex].vBuffer, &meshes[meshIndex].iBuffer, &meshes[meshIndex].meshTexture[0], &meshes[meshIndex].meshSampler, &meshes[meshIndex].localPos);
 	meshes[meshIndex].numVertex = 24;
 	meshes[meshIndex].numIndex = 36;
-	SetMeshMultitexture(meshIndex, true, L"dirtMultiTex.dds");
-	SetMeshNormalMap(meshIndex, true, L"stoneNormal.dds");
+	SetMeshMultitexture(&meshes[meshIndex], true, L"dirtMultiTex.dds");
+	SetMeshNormalMap(&meshes[meshIndex], true, L"stoneNormal.dds");
 	meshes[meshIndex].parentMesh = &meshes[0];
 
 	meshes[meshIndex].initialized = true;	
 	meshIndex++;
 
 	meshes[meshIndex].localPos = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * XMMatrixTranslation(13.0f, 5.0f, 0.0f);
-	CreateMeshFromOBJ("spacestation.obj", L"spacestation_diffuse.dds");
-	SetMeshSpecularMap(meshIndex, true, L"spacestation_specular.dds");
+	CreateMeshFromOBJ(meshes, meshIndex, "spacestation.obj", L"spacestation_diffuse.dds");
+	SetMeshSpecularMap(&meshes[meshIndex], true, L"spacestation_specular.dds");
 	meshIndex++;
 
 	return true;

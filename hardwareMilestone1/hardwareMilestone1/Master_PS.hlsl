@@ -7,6 +7,8 @@ SamplerState sampl : register(s0);
 #define P_LIGHTS 1
 #define S_LIGHTS 1
 
+#define SPEC_POWER 64
+
 //////////////////////
 // LIGHTING STRUCTS //
 //////////////////////
@@ -115,7 +117,7 @@ float4 main(OUTPUT_VERTEX vert) : SV_TARGET
 			float3 toLight = dLights[i].lightDirection.xyz;
 			float3 reflectionVec = normalize(reflect(-toCam, vert.norm));
 			float spec = dot(reflectionVec, toLight);
-			spec = pow(spec, 64);
+			spec = pow(spec, SPEC_POWER);
 
 			specularFinals[currentLight] = (dLights[i].lightColor * spec * specIntensity);
 
@@ -147,7 +149,7 @@ float4 main(OUTPUT_VERTEX vert) : SV_TARGET
 			float3 toLight = normalize(pLights[i].lightPos - vert.worldPos);
 			float3 reflectionVec = normalize(reflect(-toCam, vert.norm));
 			float spec = dot(reflectionVec, toLight);
-			spec = pow(spec, 64);
+			spec = pow(spec, SPEC_POWER);
 
 			specularFinals[currentLight] = (pLights[i].lightColor * spec * specIntensity);
 			/*
@@ -184,9 +186,10 @@ float4 main(OUTPUT_VERTEX vert) : SV_TARGET
 			float3 toLight = normalize(sLights[i].lightPos - vert.worldPos);
 			float3 reflectionVec = normalize(reflect(-toCam, vert.norm));
 			float spec = dot(reflectionVec, toLight);
-			spec = pow(spec, 64);
+			spec = pow(spec, SPEC_POWER);
 
 			specularFinals[currentLight] = (sLights[i].lightColor * spec * specIntensity);
+			//specularFinals[currentLight] *= att * edgeAtt;
 			/*
 			float4 specularIntensity = specularTex.Sample(sampl, vert.texOut);
 			float3 reflection = normalize(2.0f * vert.norm - sLights[i].lightDirection.xyz);

@@ -45,11 +45,11 @@ OUTPUT_VERTEX main(INPUT_VERTEX fromVertexBuffer)
 	newVert.projectedCoordinate.xyz = fromVertexBuffer.coordinate.xyz;
 
 	newVert.projectedCoordinate = mul(newVert.projectedCoordinate, world);
-	newVert.worldPos = newVert.projectedCoordinate;
 	if (bool(inm.x))
 	{
 		newVert.projectedCoordinate.xyz += fromVertexBuffer.instanceID * offset.xyz;
 	}
+	newVert.worldPos = newVert.projectedCoordinate;
 	newVert.projectedCoordinate = mul(newVert.projectedCoordinate, view);
 	newVert.projectedCoordinate = mul(newVert.projectedCoordinate, proj);
 	newVert.texOut = fromVertexBuffer.tex;
