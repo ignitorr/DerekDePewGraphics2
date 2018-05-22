@@ -227,6 +227,17 @@ class DEMO_APP
 	ID3D11Buffer				*normalIBuffer;
 	XMMATRIX					normalWorld;
 
+	///////////////////////////
+	// SPACE SCENE VARIABLES //
+	///////////////////////////
+	D3D11_VIEWPORT				spaceViewport;
+	XMMATRIX					viewMSpace;
+	XMMATRIX					projMSpace;
+	XMMATRIX					spaceSkyboxM;
+
+	bool						spaceActive = false; //TODO: make this true by default
+
+
 	////////////////////
 	// MISC VARIABLES //
 	////////////////////
@@ -234,11 +245,7 @@ class DEMO_APP
 	XMMATRIX					viewM2;
 	XMMATRIX					projM;
 
-	XMMATRIX					viewMSpace;
-	XMMATRIX					projMSpace;
-
 	XTime						timer;
-	bool						spaceActive = false; //TODO: make this true by default
 
 	//////////////////////
 	// LIGHTING STRUCTS //
@@ -294,9 +301,6 @@ class DEMO_APP
 		XMFLOAT4 offset;
 		XMFLOAT4 inmData;
 		XMFLOAT4 camPos;
-		//bool instanced;
-		//bool normalMap;
-		//bool multiTex;
 	};
 	//////////////////////////////////
 	// PIXEL CONSTANT BUFFER STRUCT //
@@ -358,8 +362,12 @@ class DEMO_APP
 	bool InitializeTestMeshes();
 	bool InitializeTestLights();
 
+	bool InitializeSpaceMeshes();
+	bool InitializeSpaceLights();
+
 	// RENDER FUNCTIONS //
 	bool RenderTestScene();
+	bool RenderSpaceScene();
 public:
 	DEMO_APP(HINSTANCE hinst, WNDPROC proc);
 
@@ -572,8 +580,10 @@ bool DEMO_APP::LoadOBJ(const char *filePath, const wchar_t *texturePath, ID3D11B
 		}
 	}
 
+	
+
 	// now take the parsed data and convert it to something usable
-	SIMPLE_VERTEX *meshVerts = new SIMPLE_VERTEX[normals.size()];
+	SIMPLE_VERTEX *meshVerts = new SIMPLE_VERTEX[vertIndices.size()];
 	short *meshIndices = new short[vertIndices.size()];
 
 	// fill out the vertex data
@@ -622,15 +632,15 @@ bool DEMO_APP::LoadOBJ(const char *filePath, const wchar_t *texturePath, ID3D11B
 		}
 	}
 
-	CalculateTangents(meshVerts, meshIndices, normals.size(), vertIndices.size());
+	CalculateTangents(meshVerts, meshIndices, vertIndices.size(), vertIndices.size());
 
-	LoadBuffers(meshVerts, meshIndices, normals.size(), vertIndices.size(), vertBuffer, indBuffer);
+	LoadBuffers(meshVerts, meshIndices, vertIndices.size(), vertIndices.size(), vertBuffer, indBuffer);
 
 
 	// load the model's texture
 	LoadTexture(texturePath, textureRV, textureSampler);
 
-	*numberVerts = normals.size();
+	*numberVerts = vertIndices.size();
 	*numberInds = vertIndices.size();
 
 	if (updateIndex)
@@ -818,7 +828,7 @@ bool DEMO_APP::CreateInstancedCube(float scale, const wchar_t *texturePath, unsi
 ///////////////////////////////////////////////////////////////////
 // Create a MESH from OBJ file and insert into passed meshArray. 
 ///////////////////////////////////////////////////////////////////
-bool DEMO_APP::CreateMeshFromOBJ(MESH *meshArray, unsigned int meshInd, const char *filePath, const wchar_t *texturePath, MESH *parent = nullptr)
+bool DEMO_APP::CreateMeshFromOBJ(MESH meshArray[], unsigned int meshInd, const char *filePath, const wchar_t *texturePath, MESH *parent = nullptr)
 {
 	if (parent != nullptr)
 	{
@@ -887,6 +897,7 @@ bool DEMO_APP::SetMeshInstancing(MESH *mesh, bool instanced, XMFLOAT4 offset = X
 ////////////////////////////////////////////////////
 bool DEMO_APP::InitializeTestMeshes()
 {
+	
 	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(4.0f, 0.0f, 0.0f);
 	//LoadMeshFromHeader(Barrel_data, Barrel_indicies, ARRAYSIZE(Barrel_data), ARRAYSIZE(Barrel_indicies), L"barrel.dds");
 	LoadOBJ("Barrel.obj", L"barrel.dds", &vertexBuffers[currentIndex], &indexBuffers[currentIndex], &numVertices[currentIndex], &numIndices[currentIndex], &textureRVs[currentIndex], &textureSamplers[currentIndex], true, &currentIndex);
@@ -896,6 +907,9 @@ bool DEMO_APP::InitializeTestMeshes()
 	LoadOBJ("Barrel.obj", L"barrel.dds", &vertexBuffers[currentIndex], &indexBuffers[currentIndex], &numVertices[currentIndex], &numIndices[currentIndex], &textureRVs[currentIndex], &textureSamplers[currentIndex], true, &currentIndex);
 	worldMatrices[currentIndex] = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * 	XMMatrixTranslation(4.0f, 4.0f, 0.0f);
 	LoadOBJ("Barrel.obj", L"barrel.dds", &vertexBuffers[currentIndex], &indexBuffers[currentIndex], &numVertices[currentIndex], &numIndices[currentIndex], &textureRVs[currentIndex], &textureSamplers[currentIndex], true, &currentIndex);
+	
+
+
 	worldMatrices[currentIndex] = XMMatrixScaling(15.0f, 2.0f, 15.0f) * XMMatrixIdentity() * XMMatrixTranslation(0.0f, 9.0f, 0.0f);
 	LoadMeshFromHeader(test_pyramid_data, test_pyramid_indicies, ARRAYSIZE(test_pyramid_data), ARRAYSIZE(test_pyramid_indicies), L"barrel.dds");
 
@@ -964,6 +978,7 @@ bool DEMO_APP::InitializeTestMeshes()
 	//////////////////////
 	// NEW MESH TESTING //
 	//meshes[meshIndex].modifierMatrix = XMMatrixIdentity() * XMMatrixRotationY(XMConvertToRadians(1.0f));
+	
 	meshes[meshIndex].localPos = XMMatrixIdentity() * XMMatrixTranslation(0, 1, -6);
 	CreateIndexedCube(2.0f, L"stoneMultiTex.dds", &meshes[meshIndex].vBuffer, &meshes[meshIndex].iBuffer, &meshes[meshIndex].meshTexture[0], &meshes[meshIndex].meshSampler, &meshes[meshIndex].localPos);
 	meshes[meshIndex].numVertex = 24;
@@ -984,15 +999,31 @@ bool DEMO_APP::InitializeTestMeshes()
 	meshes[meshIndex].numIndex = 36;
 	SetMeshMultitexture(&meshes[meshIndex], true, L"dirtMultiTex.dds");
 	SetMeshNormalMap(&meshes[meshIndex], true, L"stoneNormal.dds");
-	meshes[meshIndex].parentMesh = &meshes[0];
+	//meshes[meshIndex].parentMesh = &meshes[0];
 
 	meshes[meshIndex].initialized = true;	
 	meshIndex++;
 
+	
 	meshes[meshIndex].localPos = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * XMMatrixTranslation(13.0f, 1.0f, -2.0f);
 	CreateMeshFromOBJ(meshes, meshIndex, "spacestation.obj", L"spacestation_diffuse.dds");
 	SetMeshSpecularMap(&meshes[meshIndex], true, L"spacestation_specular.dds");
+	meshIndex++;	
+	
+
+
+	
+	
+	meshes[meshIndex].localPos = XMMatrixScaling(0.2f, 0.2f, 0.2f) * XMMatrixIdentity() * XMMatrixTranslation(-1.0f, 1.0f, -3.0f);
+	CreateMeshFromOBJ(meshes, meshIndex, "asteroid.obj", L"asteroid_diffuse.dds");
+	SetMeshSpecularMap(&meshes[meshIndex], true, L"asteroid_specular.dds");
+	SetMeshNormalMap(&meshes[meshIndex], true, L"asteroid_normal.dds");
 	meshIndex++;
+	
+
+
+	
+	
 
 	return true;
 }
@@ -1396,7 +1427,7 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	viewport2.MaxDepth = 1.0f;
 	viewport2.TopLeftX = BACKBUFFER_WIDTH*0.5f;
 	viewport2.TopLeftY = 0;
-
+	
 	// CREATE DEPTH BUFFER
 	D3D11_TEXTURE2D_DESC depthDesc;
 	ZeroMemory(&depthDesc, sizeof(depthDesc));
@@ -1485,6 +1516,23 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), BACKBUFFER_WIDTH*0.5f / (FLOAT)BACKBUFFER_HEIGHT, 0.01f, 100.0f);
 
+	// SPACE MATRICES
+	eye = XMVectorSet(0.0f, 5.0f, -5.0f, 0.0f);
+	at = XMVectorSet(0, 0, 0, 0);
+	viewMSpace = XMMatrixLookAtLH(eye, at, up);
+
+	projMSpace = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), BACKBUFFER_WIDTH / (FLOAT)BACKBUFFER_HEIGHT, 0.01f, 100.0f);
+
+	spaceSkyboxM = XMMatrixIdentity();
+	
+	// SPACE VIEWPORT
+	spaceViewport.Width = BACKBUFFER_WIDTH;
+	spaceViewport.Height = BACKBUFFER_HEIGHT;
+	spaceViewport.MinDepth = 0.0f;
+	spaceViewport.MaxDepth = 1.0f;
+	spaceViewport.TopLeftX = 0;
+	spaceViewport.TopLeftY = 0;
+
 	// MESHES & LIGHTS
 	InitializeTestLights();
 	InitializeTestMeshes();
@@ -1510,8 +1558,14 @@ bool DEMO_APP::Run()
 
 	// CLEAR DEPTH TO 1.0
 	context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
-	
-	RenderTestScene();
+	if (spaceActive)
+	{
+
+	}
+	else
+	{
+		RenderTestScene();
+	}
 	swap->Present(0, 0);
 	return true;
 }
@@ -1658,6 +1712,16 @@ bool DEMO_APP::MoveCamera()
 	// speed modifier
 	float speed = 6.0f;
 
+	// catch input for swapping viewports
+	if (GetAsyncKeyState('1'))
+	{
+		spaceActive = true;
+	}
+	if (GetAsyncKeyState('2'))
+	{
+		spaceActive = false;
+	}
+
 	unsigned int inputs[] = { 'W', 'A', 'S', 'D', 'Q', 'E', VK_UP, VK_DOWN, VK_RBUTTON, VK_SHIFT};
 	float activeKeys[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 	float keyEffect[] = { 1, -1, -1, 1, 1, -1, -1, 1, 0, 3 };
@@ -1693,6 +1757,7 @@ bool DEMO_APP::MoveCamera()
 
 	XMMATRIX worldViewM = XMMatrixInverse(0, viewM);
 	XMMATRIX worldViewM2 = XMMatrixInverse(0, viewM2);
+	XMMATRIX worldSpaceView = XMMatrixInverse(0, viewMSpace);
 	if (activeKeys[8])
 	{
 		//ShowCursor(false);
@@ -1731,19 +1796,24 @@ bool DEMO_APP::MoveCamera()
 	}
 
 	XMMATRIX translate = XMMatrixTranslation(translation.x, translation.y, translation.z);
-	worldViewM = translate * worldViewM;
-	viewM = XMMatrixInverse(0, worldViewM);
+	if (spaceActive)
+	{
+		worldSpaceView = translate * worldSpaceView;
+		worldSpaceView = XMMatrixInverse(0, worldSpaceView);
 
-	// update skybox pos to camera pos
-	XMVECTOR offset = worldViewM.r[3];
-	skyboxM.r[3] = offset;
+		spaceSkyboxM.r[3] = worldSpaceView.r[3];
+	}
+	else
+	{
+		worldViewM = translate * worldViewM;
+		viewM = XMMatrixInverse(0, worldViewM);
+		skyboxM.r[3] = worldViewM.r[3];
 
-
-	// update second skybox matrix
-	worldViewM2 = translate * worldViewM2;
-	viewM2 = XMMatrixInverse(0, worldViewM2);
-
-	skyboxM2.r[3] = worldViewM2.r[3];
+		// update second skybox matrix
+		worldViewM2 = translate * worldViewM2;
+		viewM2 = XMMatrixInverse(0, worldViewM2);
+		skyboxM2.r[3] = worldViewM2.r[3];
+	}
 
 	//update proj matrix with new FOV
 	DXGI_SWAP_CHAIN_DESC current;
@@ -1791,7 +1861,17 @@ bool DEMO_APP::ResizeWindow()
 	viewport2.TopLeftX = (float)current.BufferDesc.Width*0.5f;
 	viewport2.TopLeftY = 0;
 
+	spaceViewport.Width = (float)current.BufferDesc.Width;
+	spaceViewport.Height = (float)current.BufferDesc.Height;
+	spaceViewport.MinDepth = 0.0f;
+	spaceViewport.MaxDepth = 1.0f;
+	spaceViewport.TopLeftX = 0;
+	spaceViewport.TopLeftY = 0;
+
+
+
 	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), viewport.Width * 0.5f / viewport.Height, 0.1f, 100.0f);
+	projMSpace = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), spaceViewport.Width / spaceViewport.Height, 0.1f, 100.0f);
 
 	depthStencil->Release();
 	depthStencilView->Release();
