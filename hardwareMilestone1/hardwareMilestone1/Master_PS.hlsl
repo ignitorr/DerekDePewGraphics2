@@ -7,7 +7,7 @@ SamplerState sampl : register(s0);
 #define P_LIGHTS 1
 #define S_LIGHTS 1
 
-#define SPEC_POWER 64
+#define SPEC_POWER 128
 
 //////////////////////
 // LIGHTING STRUCTS //
@@ -61,12 +61,10 @@ struct OUTPUT_VERTEX
 
 float4 main(OUTPUT_VERTEX vert) : SV_TARGET
 {
-	float4 lightFinals[D_LIGHTS + P_LIGHTS + S_LIGHTS];
-	float4 specularFinals[D_LIGHTS + P_LIGHTS + S_LIGHTS];
+	float4 lightFinal = float4(0, 0, 0, 1);
+	float4 specFinal = float4(0, 0, 0, 1);
 
-	float4 specular;
-	float4 specularColor;
-	specularColor.x = specularColor.y = specularColor.z = specularColor.w = 1.0f;
+	float4 specIntensity = (specularTex.Sample(sampl, vert.texOut)) * 1.5f;
 
 	float4 final;
 	if (vert.multiTex)
@@ -96,20 +94,17 @@ float4 main(OUTPUT_VERTEX vert) : SV_TARGET
 	}
 	// END NORMAL MAPPING CODE //
 
-
 	float4 ambient = final * float4(0.15, 0.15, 0.15, 1);
-	
-	uint currentLight = 0;
 
-	float specIntensity = (specularTex.Sample(sampl, vert.texOut)).x;
-	
 	// DIRECTIONAL LIGHTS
 	for (uint i = 0; i < D_LIGHTS; i++)
 	{
-		lightFinals[currentLight] = saturate(dot(normalize(-dLights[i].lightDirection.xyz), normalize(vert.norm)) * dLights[i].lightColor);
+		float ratio = dot(normalize(-dLights[i].lightDirection.xyz), normalize(vert.norm)) * dLights[i].lightColor;
+		float4 lightEffect = saturate(ratio);
 
-		// SPECULAR CODE
-		
+		lightFinal += saturate(lightEffect);
+
+		// SPECULAR
 		if (vert.specMap)
 		{
 			float3 toCam = vert.camPos;
@@ -118,11 +113,11 @@ float4 main(OUTPUT_VERTEX vert) : SV_TARGET
 			float spec = dot(reflectionVec, toLight);
 			spec = pow(spec, SPEC_POWER);
 
-			specularFinals[currentLight] = (dLights[i].lightColor * spec * specIntensity);
-		}
-		
+			float4 specEffect = (dLights[i].lightColor * spec * specIntensity);
+			specEffect *= ratio;
 
-		currentLight += 1;
+			specFinal += saturate(specEffect);
+		}
 	}
 
 	// POINT LIGHTS
@@ -132,9 +127,13 @@ float4 main(OUTPUT_VERTEX vert) : SV_TARGET
 		float4 lightdir = normalize(pLights[i].lightPos - vert.worldPos);
 		float lightRatio = clamp(dot(lightdir, normalize(vert.norm)), 0, 1);
 
-		lightFinals[currentLight] = saturate(lightRatio * pLights[i].lightColor);
-		lightFinals[currentLight] *= att;
-		
+
+		float4 lightEffect = saturate(lightRatio * pLights[i].lightColor);
+		lightEffect *= att;
+
+		lightFinal += saturate(lightEffect);
+
+		// SPECULAR
 		if (vert.specMap)
 		{
 			float3 toCam = vert.camPos;
@@ -143,11 +142,11 @@ float4 main(OUTPUT_VERTEX vert) : SV_TARGET
 			float spec = dot(reflectionVec, toLight);
 			spec = pow(spec, SPEC_POWER);
 
-			specularFinals[currentLight] = (pLights[i].lightColor * spec * specIntensity);
-		}
-		
+			float4 specEffect = (pLights[i].lightColor * spec * specIntensity);
+			specEffect *= lightRatio * att;
 
-		currentLight += 1;
+			specFinal += saturate(specEffect);
+		}
 	}
 
 	// SPOT LIGHTS
@@ -163,9 +162,12 @@ float4 main(OUTPUT_VERTEX vert) : SV_TARGET
 
 		float edgeAtt = 1.0 - clamp((sLights[i].innerConeRatio - surfaceRatio) / (sLights[i].innerConeRatio - sLights[i].outerConeRatio), 0, 1);
 
-		lightFinals[currentLight] = saturate(lightRatio * sLights[i].lightColor);
-		lightFinals[currentLight] *= att * edgeAtt;
-		
+		float4 lightEffect = saturate(lightRatio * sLights[i].lightColor);
+		lightEffect *= att * edgeAtt;
+
+		lightFinal += saturate(lightEffect);
+
+		// SPECULAR
 		if (vert.specMap)
 		{
 			float3 toCam = vert.camPos;
@@ -174,38 +176,12 @@ float4 main(OUTPUT_VERTEX vert) : SV_TARGET
 			float spec = dot(reflectionVec, toLight);
 			spec = pow(spec, SPEC_POWER);
 
-			specularFinals[currentLight] = (sLights[i].lightColor * spec * specIntensity);
-			//specularFinals[currentLight] *= att * edgeAtt; ask dan if this is needed
-		}
-		
+			float4 specEffect = (sLights[i].lightColor * spec * specIntensity);
+			specEffect *= att * edgeAtt;
 
-		currentLight += 1;
-	}
-
-
-
-
-	float4 finalcolor;
-	finalcolor.x = 1;
-	finalcolor.y = 1;
-	finalcolor.z = 1;
-	finalcolor.w = 1;
-	float4 finalSpec;
-	finalSpec.x = finalSpec.y = finalSpec.z = finalSpec.w = 0;
-	for (uint i = 0; i < (D_LIGHTS + P_LIGHTS + S_LIGHTS); i++)
-	{
-		finalcolor += saturate(lightFinals[i]);
-
-		if (vert.specMap)
-		{
-			finalSpec += specularFinals[i];
+			specFinal += saturate(specEffect);
 		}
 	}
 
-	if (vert.specMap)
-	{
-		finalSpec = finalSpec / (D_LIGHTS + P_LIGHTS + S_LIGHTS);
-		return ((final * finalcolor) - final + ambient) + finalSpec;
-	}
-	return (final * finalcolor) - final + ambient;
+	return (final * lightFinal) + ambient + specFinal;
 }

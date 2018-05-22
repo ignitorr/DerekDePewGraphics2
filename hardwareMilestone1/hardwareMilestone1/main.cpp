@@ -963,7 +963,7 @@ bool DEMO_APP::InitializeTestMeshes()
 
 	//////////////////////
 	// NEW MESH TESTING //
-	//meshes[meshIndex].modifierMatrix = XMMatrixRotationY(XMConvertToRadians(1.0f));
+	//meshes[meshIndex].modifierMatrix = XMMatrixIdentity() * XMMatrixRotationY(XMConvertToRadians(1.0f));
 	meshes[meshIndex].localPos = XMMatrixIdentity() * XMMatrixTranslation(0, 1, -6);
 	CreateIndexedCube(2.0f, L"stoneMultiTex.dds", &meshes[meshIndex].vBuffer, &meshes[meshIndex].iBuffer, &meshes[meshIndex].meshTexture[0], &meshes[meshIndex].meshSampler, &meshes[meshIndex].localPos);
 	meshes[meshIndex].numVertex = 24;
@@ -977,7 +977,7 @@ bool DEMO_APP::InitializeTestMeshes()
 	meshIndex++;
 
 
-	meshes[meshIndex].modifierMatrix = XMMatrixIdentity() * XMMatrixRotationZ(XMConvertToRadians(1.0f));
+	meshes[meshIndex].modifierMatrix = XMMatrixIdentity() * XMMatrixRotationY(XMConvertToRadians(-1.0f));
 	meshes[meshIndex].localPos = XMMatrixIdentity() * XMMatrixTranslation(1, 0, 0);
 	CreateIndexedCube(0.5f, L"stoneMultiTex.dds", &meshes[meshIndex].vBuffer, &meshes[meshIndex].iBuffer, &meshes[meshIndex].meshTexture[0], &meshes[meshIndex].meshSampler, &meshes[meshIndex].localPos);
 	meshes[meshIndex].numVertex = 24;
@@ -989,7 +989,7 @@ bool DEMO_APP::InitializeTestMeshes()
 	meshes[meshIndex].initialized = true;	
 	meshIndex++;
 
-	meshes[meshIndex].localPos = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * XMMatrixTranslation(13.0f, 5.0f, 0.0f);
+	meshes[meshIndex].localPos = XMMatrixScaling(0.1f, 0.1f, 0.1f) * XMMatrixIdentity() * XMMatrixTranslation(13.0f, 1.0f, -2.0f);
 	CreateMeshFromOBJ(meshes, meshIndex, "spacestation.obj", L"spacestation_diffuse.dds");
 	SetMeshSpecularMap(&meshes[meshIndex], true, L"spacestation_specular.dds");
 	meshIndex++;
@@ -1016,6 +1016,9 @@ bool DEMO_APP::InitializeTestLights()
 	psData.spot[0].outerConeRatio = 0.96f;
 	psData.spot[0].innerConeRatio = 0.98f;
 
+	//psData.directional[0].lightColor = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+	//psData.point[0].lightColor = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+	//psData.spot[0].lightColor = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
 	return true;
 }
 
@@ -1038,9 +1041,9 @@ bool DEMO_APP::RenderTestScene()
 	VS_MASTER_DATA masterData;
 	masterData.proj = projM;
 
-	XMMATRIX spinM = XMMatrixRotationX(-timer.Delta());
+	XMMATRIX spinM = XMMatrixRotationX(-timer.Delta() * 0.1f);
 	XMMATRIX dirSpin = XMMatrixRotationY(-timer.Delta());
-	XMMATRIX orbitM = XMMatrixRotationY(-time * 2);
+	XMMATRIX orbitM = XMMatrixRotationY(-time * 2.0f);
 	XMMATRIX translateM = XMMatrixTranslation(-1.5f, 3.0f, 0.0f);
 
 	XMVECTOR scale, rot, trans;
@@ -1080,6 +1083,34 @@ bool DEMO_APP::RenderTestScene()
 	// END RENDER TO TEXTURE //
 	///////////////////////////
 
+	///////////////////
+	// LIGHT UPDATES //
+	///////////////////
+	XMMATRIX spotM = translateM * orbitM;
+	XMStoreFloat4(&psData.spot[0].lightPos, spotM.r[3]);
+	XMVECTOR spotDir = XMLoadFloat4(&(psData.spot[0].lightDirection));
+	spotDir = XMVector3Transform(spotDir, spinM);
+	XMStoreFloat4(&psData.spot[0].lightDirection, spotDir);
+
+	// DIRECTIONAL LIGHT
+	XMVECTOR dirDir = XMLoadFloat4(&(psData.directional[0].lightDirection));
+	dirDir = XMVector3Transform(dirDir, dirSpin);
+	XMStoreFloat4(&psData.directional[0].lightDirection, dirDir);
+
+	// NEXT POINT LIGHT
+	// starting Y = 2, max = 4
+	if (psData.point[0].lightPos.y > 2.0f)
+	{
+		pLightMove = -1;
+	}
+	if (psData.point[0].lightPos.y < 0.0f)
+	{
+		pLightMove = 1;
+	}
+	psData.point[0].lightPos.y += timer.Delta() * pLightMove * 0.5f;
+	///////////////////////
+	// END LIGHT UPDATES //
+	///////////////////////
 
 	// MAIN SCENE 
 	context->OMSetRenderTargets(1, &rtv, depthStencilView);
@@ -1141,35 +1172,6 @@ bool DEMO_APP::RenderTestScene()
 
 		// RE-CLEAR DEPTH BUFFER
 		context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
-
-		///////////////////
-		// LIGHT UPDATES //
-		///////////////////
-		XMMATRIX spotM = translateM * orbitM;
-		XMStoreFloat4(&psData.spot[0].lightPos, spotM.r[3]);
-		XMVECTOR spotDir = XMLoadFloat4(&(psData.spot[0].lightDirection));
-		spotDir = XMVector3Transform(spotDir, spinM);
-		XMStoreFloat4(&psData.spot[0].lightDirection, spotDir);
-
-		// DIRECTIONAL LIGHT
-		XMVECTOR dirDir = XMLoadFloat4(&(psData.directional[0].lightDirection));
-		dirDir = XMVector3Transform(dirDir, dirSpin);
-		XMStoreFloat4(&psData.directional[0].lightDirection, dirDir);
-
-		// NEXT POINT LIGHT
-		// starting Y = 2, max = 4
-		if (psData.point[0].lightPos.y > 2.0f)
-		{
-			pLightMove = -1;
-		}
-		if (psData.point[0].lightPos.y < 0.0f)
-		{
-			pLightMove = 1;
-		}
-		psData.point[0].lightPos.y += timer.Delta() * pLightMove * 0.5f;
-		///////////////////////
-		// END LIGHT UPDATES //
-		///////////////////////
 
 		// RESET SHADERS 
 		context->VSSetConstantBuffers(0, 1, &vertexConstantBuffer);
@@ -1286,9 +1288,10 @@ bool DEMO_APP::RenderTestScene()
 			meshes[i].localPos = (meshes[i].modifierMatrix) * meshes[i].localPos;
 			XMMatrixDecompose(&scale, &rot, &trans, meshes[i].modifierMatrix);
 			XMQuaternionToAxisAngle(&axis, &angle, rot);
+			XMMATRIX translat = XMMatrixTranslationFromVector(trans);
 			meshes[i].localPos = (XMMatrixRotationQuaternion(timer.Delta() * rot) * meshes[i].localPos);
-			//meshes[i].localPos = spinningTest * meshes[i].localPos;
 			masterData.world = meshes[i].getTransformedMatrix();
+			//masterData.world = meshes[i].localPos;
 
 			masterData.offset = meshes[i].instanceOffset;
 			masterData.inmData = XMFLOAT4((float)meshes[i].instanced, (float)meshes[i].normalMap, (float)meshes[i].multiTexture, (float)meshes[i].specularMap);
@@ -1507,480 +1510,7 @@ bool DEMO_APP::Run()
 
 	// CLEAR DEPTH TO 1.0
 	context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
-	/*
 	
-	// DRAW SKYBOX FIRST
-	context->RSSetViewports(1, &viewport);
-	UINT strides = sizeof(SIMPLE_VERTEX);
-	UINT offsets = 0;
-	context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	context->VSSetShader(skyboxVS, 0, 0);
-	context->PSSetShader(skyboxPS, 0, 0);
-	context->VSSetConstantBuffers(0, 1, &skyboxConstantBuffer);
-	context->IASetVertexBuffers(0, 1, &skyboxVBuffer, &strides, &offsets);
-	context->IASetIndexBuffer(skyboxIBuffer, DXGI_FORMAT_R16_UINT, 0);
-	context->PSSetShaderResources(0, 1, &skyboxRV);
-	context->PSSetSamplers(0, 1, &skyboxSampler);
-
-	SKYBOX_VS_DATA skyVSData;
-	skyVSData.world = skyboxM;
-	skyVSData.view = viewM;
-	skyVSData.proj = projM;
-
-
-	XMVECTOR camPos = skyboxM.r[3];
-	XMFLOAT3 camPosF;
-	XMStoreFloat3(&camPosF, camPos);
-	skyVSData.cameraPos = camPosF;
-
-	D3D11_MAPPED_SUBRESOURCE vsSub;
-	context->Map(skyboxConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
-	memcpy(vsSub.pData, &skyVSData, sizeof(skyVSData));
-	context->Unmap(skyboxConstantBuffer, NULL);
-
-	context->DrawIndexed(36, 0, 0);
-
-	// RE-CLEAR DEPTH BUFFER
-	context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
-
-	// SET CB AND SHADERS
-	context->VSSetConstantBuffers(0, 1, &vertexConstantBuffer);
-	context->PSSetConstantBuffers(0, 1, &pixelConstantBuffer);
-	context->VSSetShader(vs, 0, 0);
-	context->PSSetShader(ps, 0, 0);
-
-	///////////////////
-	// LIGHT UPDATES //
-	///////////////////
-	double time = timer.TotalTime();
-
-	// SPOTLIGHT
-	XMMATRIX spinM = XMMatrixRotationX(-timer.Delta());
-	XMMATRIX dirSpin = XMMatrixRotationY(-timer.Delta());
-	XMMATRIX orbitM = XMMatrixRotationY(-time * 2);
-	XMMATRIX translateM = XMMatrixTranslation(-1.5f, 3.0f, 0.0f);
-	//worldM2 = scaleM * spinM * translateM * orbitM;
-
-	XMMATRIX spotM = translateM * orbitM;
-	XMStoreFloat4(&psData.spot[0].lightPos, spotM.r[3]);
-	XMVECTOR spotDir = XMLoadFloat4(&(psData.spot[0].lightDirection));
-	spotDir = XMVector3Transform(spotDir, spinM);
-	XMStoreFloat4(&psData.spot[0].lightDirection, spotDir);
-	
-	// DIRECTIONAL LIGHT
-	XMVECTOR dirDir = XMLoadFloat4(&(psData.directional[0].lightDirection));
-	dirDir = XMVector3Transform(dirDir, dirSpin);
-	XMStoreFloat4(&psData.directional[0].lightDirection, dirDir);
-
-	// NEXT POINT LIGHT
-	// starting Y = 2, max = 4
-	if (psData.point[0].lightPos.y > 2.0f)
-	{
-		pLightMove = -1;
-	}
-	if (psData.point[0].lightPos.y < 0.0f)
-	{
-		pLightMove = 1;
-	}
-	psData.point[0].lightPos.y += timer.Delta() * pLightMove * 0.5f;
-	///////////////////////
-	// END LIGHT UPDATES //
-	///////////////////////
-
-	///////////////////////////////////////////////
-	// RENDER TO TEXTURE STUFF BEFORE MAIN SCENE //
-	///////////////////////////////////////////////
-
-	context->RSSetViewports(1, &rtViewport);
-	context->OMSetRenderTargets(1, &rtRTV, NULL);
-
-	FLOAT white[4] = { 1.0, 1.0f, 1.0f, 1.0f };
-	context->ClearRenderTargetView(rtRTV, white);
-
-	context->IASetVertexBuffers(0, 1, &rtVBuffer, &strides, &offsets);
-	context->IASetIndexBuffer(rtIBuffer, DXGI_FORMAT_R16_UINT, 0);
-	context->PSSetShaderResources(0, 1, &rtCubeSRV);
-	context->PSSetSamplers(0, 1, &rtCubeSampler);
-
-
-	VS_BUFFER_DATA vData;
-	vData.world = XMMatrixTranslation(0, 1.0f, 0) * orbitM;
-	vData.view = rtView;
-	vData.proj = rtProj;
-	context->Map(vertexConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
-	memcpy(vsSub.pData, &vData, sizeof(vData));
-	context->Unmap(vertexConstantBuffer, NULL);
-
-	context->DrawIndexed(36, 0, 0);
-
-
-	///////////////////////////
-	// END RENDER TO TEXTURE //
-	///////////////////////////
-
-	context->RSSetViewports(1, &viewport);
-	context->OMSetRenderTargets(1, &rtv, depthStencilView);
-	VS_BUFFER_DATA vsData;
-	vsData.view = viewM;
-	vsData.proj = projM;
-
-	D3D11_MAPPED_SUBRESOURCE psSub;
-	context->Map(pixelConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &psSub);
-	memcpy(psSub.pData, &psData, sizeof(psData));
-	context->Unmap(pixelConstantBuffer, NULL);
-	// LOOP THRU ARRAYS AND DRAW
-	for (int i = 0; i < currentIndex; i++)
-	{
-		context->IASetVertexBuffers(0, 1, &vertexBuffers[i], &strides, &offsets);
-		context->IASetIndexBuffer(indexBuffers[i], DXGI_FORMAT_R16_UINT, 0);
-		context->PSSetShaderResources(0, 1, &textureRVs[i]);
-		context->PSSetSamplers(0, 1, &textureSamplers[i]);
-
-		// update vertex shader with new info
-		vsData.world = worldMatrices[i];
-		D3D11_MAPPED_SUBRESOURCE vsSub;
-		context->Map(vertexConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
-		memcpy(vsSub.pData, &vsData, sizeof(vsData));
-		context->Unmap(vertexConstantBuffer, NULL);
-
-		context->DrawIndexed(numIndices[i], 0, 0);
-	}
-	
-	// instancing stuff...
-	for (int i = 0; i < currentInstanceIndex; i++)
-	{
-		context->IASetVertexBuffers(0, 1, &instanceVertexBuffers[i], &strides, &offsets);
-		context->IASetIndexBuffer(instanceIndexBuffers[i], DXGI_FORMAT_R16_UINT, 0);
-		context->PSSetShaderResources(0, 1, &instanceTextureRVs[i]);
-		context->PSSetSamplers(0, 1, &instanceTextureSamplers[i]);
-
-		vsData.world = instanceMatrices[i];
-		D3D11_MAPPED_SUBRESOURCE vsSub;
-		context->Map(vertexConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
-		memcpy(vsSub.pData, &vsData, sizeof(vsData));
-		context->Unmap(vertexConstantBuffer, NULL);
-
-		context->DrawIndexedInstanced(instanceNumIndices[i], instanceCount[i], 0, 0, 0);
-
-	}
-
-	// draw last cube that uses RTT
-	context->IASetVertexBuffers(0, 1, &rtVBuffer, &strides, &offsets);
-	context->IASetIndexBuffer(rtIBuffer, DXGI_FORMAT_R16_UINT, 0);
-	context->PSSetShaderResources(0, 1, &rtSRV);
-	context->PSSetSamplers(0, 1, &rtCubeSampler);
-
-	vData.world = rtWorld;
-	vData.view = viewM;
-	vData.proj = projM;
-
-	context->Map(vertexConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
-	memcpy(vsSub.pData, &vData, sizeof(vData));
-	context->Unmap(vertexConstantBuffer, NULL);
-
-	context->DrawIndexed(36, 0, 0);
-	
-
-	
-	// MULTI TEXTURE TEST //
-	context->PSSetShader(multiPS, 0, 0);
-	context->IASetVertexBuffers(0, 1, &mtVBuffer, &strides, &offsets);
-	context->IASetIndexBuffer(mtIBuffer, DXGI_FORMAT_R16_UINT, 0);
-	context->PSSetShaderResources(0, 2, multiTextureRVs);
-	context->PSSetSamplers(0, 1, &multiSampler);
-
-	vData.world = mtWorld;
-	context->Map(vertexConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
-	memcpy(vsSub.pData, &vData, sizeof(vData));
-	context->Unmap(vertexConstantBuffer, NULL);
-
-	context->DrawIndexed(36, 0, 0);
-	// END MULTI TEXTURE //
-
-	// NORMAL MAPPING TEST //
-	
-	context->VSSetShader(normalVS, 0, 0);
-	context->PSSetShader(normalPS, 0, 0);
-	context->IASetVertexBuffers(0, 1, &normalVBuffer, &strides, &offsets);
-	context->IASetIndexBuffer(normalIBuffer, DXGI_FORMAT_R16_UINT, 0);
-	context->PSSetShaderResources(0, 2, normalTextureRVs);
-	context->PSSetSamplers(0, 1, &normalSampler);
-
-	vData.world = normalWorld;
-	context->Map(vertexConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
-	memcpy(vsSub.pData, &vData, sizeof(vData));
-	context->Unmap(vertexConstantBuffer, NULL);
-
-	context->DrawIndexed(36, 0, 0);
-
-	// END NORMAL MAPPING //
-
-	// NEW MESH SYSTEM //
-
-	context->VSSetShader(masterVS, 0, 0);
-	context->PSSetShader(masterPS, 0, 0);
-	context->VSSetConstantBuffers(0, 1, &masterConstantBuffer);
-
-	VS_MASTER_DATA masterData;
-	masterData.view = viewM;
-	masterData.proj = projM;
-	// set camera pos for specular data
-	XMVECTOR currentCamPos = XMMatrixInverse(0, viewM).r[3];
-	XMStoreFloat4(&masterData.camPos, currentCamPos);
-	
-
-
-	XMVECTOR scale, rot, trans;
-	XMVECTOR axis;
-	float angle;
-
-	XMMATRIX spinningTest = XMMatrixRotationY(timer.Delta() * 2.0f);
-	for (int i = 0; i < meshIndex; i++)
-	{
-		context->IASetVertexBuffers(0, 1, &meshes[i].vBuffer, &strides, &offsets);
-		context->IASetIndexBuffer(meshes[i].iBuffer, DXGI_FORMAT_R16_UINT, 0);
-		if (meshes[i].multiTexture)
-		{
-			context->PSSetShaderResources(0, 2, meshes[i].meshTexture);
-		}
-		else
-		{
-			context->PSSetShaderResources(0, 1, &meshes[i].meshTexture[0]);
-		}
-		if (meshes[i].normalMap)
-			context->PSSetShaderResources(2, 1, &meshes[i].meshNormalMap);
-		if (meshes[i].specularMap)
-			context->PSSetShaderResources(3, 1, &meshes[i].meshSpecularMap);
-
-		context->PSSetSamplers(0, 1, &meshes[i].meshSampler);
-
-		meshes[i].localPos = (meshes[i].modifierMatrix) * meshes[i].localPos;
-		XMMatrixDecompose(&scale, &rot, &trans, meshes[i].modifierMatrix);
-		XMQuaternionToAxisAngle(&axis, &angle, rot);
-		meshes[i].localPos = (XMMatrixRotationQuaternion(timer.Delta() * rot) * meshes[i].localPos);
-		//meshes[i].localPos = spinningTest * meshes[i].localPos;
-		masterData.world = meshes[i].getTransformedMatrix();
-
-		masterData.offset = meshes[i].instanceOffset;
-		masterData.inmData = XMFLOAT4((float)meshes[i].instanced, (float)meshes[i].normalMap, (float)meshes[i].multiTexture, (float)meshes[i].specularMap);
-
-		context->Map(masterConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
-		memcpy(vsSub.pData, &masterData, sizeof(masterData));
-		context->Unmap(masterConstantBuffer, NULL);
-
-		if (meshes[i].instanced)
-		{
-			context->DrawIndexedInstanced(meshes[i].numIndex, meshes[i].instanceCount, 0, 0, 0);
-		}
-		else
-		{
-			context->DrawIndexed(meshes[i].numIndex, 0, 0);
-		}
-
-	}
-
-
-	////////////////////////////////////////////////////////////////////////////////
-	//
-	// SECOND VIEWPORT RENDER IS HERE
-	//
-	////////////////////////////////////////////////////////////////////////////////
-
-	// VIEWPORT 2 RENDER //
-	context->RSSetViewports(1, &viewport2);
-	context->OMSetRenderTargets(1, &rtv, depthStencilView);
-	// CLEAR DEPTH TO 1.0
-	context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
-
-	// SKYBOX REDRAW
-	context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	context->VSSetShader(skyboxVS, 0, 0);
-	context->PSSetShader(skyboxPS, 0, 0);
-	context->VSSetConstantBuffers(0, 1, &skyboxConstantBuffer);
-	context->IASetVertexBuffers(0, 1, &skyboxVBuffer, &strides, &offsets);
-	context->IASetIndexBuffer(skyboxIBuffer, DXGI_FORMAT_R16_UINT, 0);
-	context->PSSetShaderResources(0, 1, &skyboxRV);
-	context->PSSetSamplers(0, 1, &skyboxSampler);
-
-	skyVSData.world = skyboxM2;
-	skyVSData.view = viewM2;
-	//skyVSData.proj = projM;
-
-
-	camPos = skyboxM2.r[3];
-	XMStoreFloat3(&camPosF, camPos);
-	skyVSData.cameraPos = camPosF;
-
-	context->Map(skyboxConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
-	memcpy(vsSub.pData, &skyVSData, sizeof(skyVSData));
-	context->Unmap(skyboxConstantBuffer, NULL);
-
-	context->DrawIndexed(36, 0, 0);
-
-	// RE-CLEAR DEPTH BUFFER
-	context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
-
-	// SET CB AND SHADERS
-	context->VSSetConstantBuffers(0, 1, &vertexConstantBuffer);
-	context->PSSetConstantBuffers(0, 1, &pixelConstantBuffer);
-	context->VSSetShader(vs, 0, 0);
-	context->PSSetShader(ps, 0, 0);
-
-	vsData.view = viewM2;
-	vsData.proj = projM;
-
-	context->Map(pixelConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &psSub);
-	memcpy(psSub.pData, &psData, sizeof(psData));
-	context->Unmap(pixelConstantBuffer, NULL);
-	// LOOP THRU ARRAYS AND DRAW
-	for (int i = 0; i < currentIndex; i++)
-	{
-		context->IASetVertexBuffers(0, 1, &vertexBuffers[i], &strides, &offsets);
-		context->IASetIndexBuffer(indexBuffers[i], DXGI_FORMAT_R16_UINT, 0);
-		context->PSSetShaderResources(0, 1, &textureRVs[i]);
-		context->PSSetSamplers(0, 1, &textureSamplers[i]);
-
-		// update vertex shader with new info
-		vsData.world = worldMatrices[i];
-		D3D11_MAPPED_SUBRESOURCE vsSub;
-		context->Map(vertexConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
-		memcpy(vsSub.pData, &vsData, sizeof(vsData));
-		context->Unmap(vertexConstantBuffer, NULL);
-
-		context->DrawIndexed(numIndices[i], 0, 0);
-	}
-
-	// instancing stuff...
-	for (int i = 0; i < currentInstanceIndex; i++)
-	{
-		context->IASetVertexBuffers(0, 1, &instanceVertexBuffers[i], &strides, &offsets);
-		context->IASetIndexBuffer(instanceIndexBuffers[i], DXGI_FORMAT_R16_UINT, 0);
-		context->PSSetShaderResources(0, 1, &instanceTextureRVs[i]);
-		context->PSSetSamplers(0, 1, &instanceTextureSamplers[i]);
-
-		vsData.world = instanceMatrices[i];
-		D3D11_MAPPED_SUBRESOURCE vsSub;
-		context->Map(vertexConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
-		memcpy(vsSub.pData, &vsData, sizeof(vsData));
-		context->Unmap(vertexConstantBuffer, NULL);
-
-		context->DrawIndexedInstanced(instanceNumIndices[i], instanceCount[i], 0, 0, 0);
-
-	}
-
-	// draw last cube that uses RTT
-	context->IASetVertexBuffers(0, 1, &rtVBuffer, &strides, &offsets);
-	context->IASetIndexBuffer(rtIBuffer, DXGI_FORMAT_R16_UINT, 0);
-	context->PSSetShaderResources(0, 1, &rtSRV);
-	context->PSSetSamplers(0, 1, &rtCubeSampler);
-
-	vData.world = rtWorld;
-	vData.view = viewM2;
-	vData.proj = projM;
-
-	context->Map(vertexConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
-	memcpy(vsSub.pData, &vData, sizeof(vData));
-	context->Unmap(vertexConstantBuffer, NULL);
-
-	context->DrawIndexed(36, 0, 0);
-
-	// MULTI TEXTURE TEST //
-	context->PSSetShader(multiPS, 0, 0);
-	context->IASetVertexBuffers(0, 1, &mtVBuffer, &strides, &offsets);
-	context->IASetIndexBuffer(mtIBuffer, DXGI_FORMAT_R16_UINT, 0);
-	context->PSSetShaderResources(0, 2, multiTextureRVs);
-	context->PSSetSamplers(0, 1, &multiSampler);
-
-	vData.world = mtWorld;
-	context->Map(vertexConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
-	memcpy(vsSub.pData, &vData, sizeof(vData));
-	context->Unmap(vertexConstantBuffer, NULL);
-
-	context->DrawIndexed(36, 0, 0);
-	// END MULTI TEXTURE //
-
-	// NORMAL MAPPING TEST //
-
-	context->VSSetShader(normalVS, 0, 0);
-	context->PSSetShader(normalPS, 0, 0);
-	context->IASetVertexBuffers(0, 1, &normalVBuffer, &strides, &offsets);
-	context->IASetIndexBuffer(normalIBuffer, DXGI_FORMAT_R16_UINT, 0);
-	context->PSSetShaderResources(0, 2, normalTextureRVs);
-	context->PSSetSamplers(0, 1, &normalSampler);
-
-	vData.world = normalWorld;
-	context->Map(vertexConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
-	memcpy(vsSub.pData, &vData, sizeof(vData));
-	context->Unmap(vertexConstantBuffer, NULL);
-
-	context->DrawIndexed(36, 0, 0);
-
-	// END NORMAL MAPPING //
-
-	// NEW MESH SYSTEM //
-
-	context->VSSetShader(masterVS, 0, 0);
-	context->PSSetShader(masterPS, 0, 0);
-	context->VSSetConstantBuffers(0, 1, &masterConstantBuffer);
-
-	masterData.view = viewM2;
-	masterData.proj = projM;
-	// set camera pos for specular data
-
-	//XMVECTOR currentCamPos = XMMatrixInverse(0, viewM2).r[3];
-	XMStoreFloat4(&masterData.camPos, currentCamPos);
-
-
-
-	//XMVECTOR scale, rot, trans;
-	//XMVECTOR axis;
-	//float angle;
-
-//	XMMATRIX spinningTest = XMMatrixRotationY(timer.Delta() * 2.0f);
-	for (int i = 0; i < meshIndex; i++)
-	{
-		context->IASetVertexBuffers(0, 1, &meshes[i].vBuffer, &strides, &offsets);
-		context->IASetIndexBuffer(meshes[i].iBuffer, DXGI_FORMAT_R16_UINT, 0);
-		if (meshes[i].multiTexture)
-		{
-			context->PSSetShaderResources(0, 2, meshes[i].meshTexture);
-		}
-		else
-		{
-			context->PSSetShaderResources(0, 1, &meshes[i].meshTexture[0]);
-		}
-		if (meshes[i].normalMap)
-			context->PSSetShaderResources(2, 1, &meshes[i].meshNormalMap);
-		if (meshes[i].specularMap)
-			context->PSSetShaderResources(3, 1, &meshes[i].meshSpecularMap);
-
-		context->PSSetSamplers(0, 1, &meshes[i].meshSampler);
-
-		meshes[i].localPos = (meshes[i].modifierMatrix) * meshes[i].localPos;
-		XMMatrixDecompose(&scale, &rot, &trans, meshes[i].modifierMatrix);
-		XMQuaternionToAxisAngle(&axis, &angle, rot);
-		meshes[i].localPos = (XMMatrixRotationQuaternion(timer.Delta() * rot) * meshes[i].localPos);
-		//meshes[i].localPos = spinningTest * meshes[i].localPos;
-		masterData.world = meshes[i].getTransformedMatrix();
-
-		masterData.offset = meshes[i].instanceOffset;
-		masterData.inmData = XMFLOAT4((float)meshes[i].instanced, (float)meshes[i].normalMap, (float)meshes[i].multiTexture, (float)meshes[i].specularMap);
-
-		context->Map(masterConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
-		memcpy(vsSub.pData, &masterData, sizeof(masterData));
-		context->Unmap(masterConstantBuffer, NULL);
-
-		if (meshes[i].instanced)
-		{
-			context->DrawIndexedInstanced(meshes[i].numIndex, meshes[i].instanceCount, 0, 0, 0);
-		}
-		else
-		{
-			context->DrawIndexed(meshes[i].numIndex, 0, 0);
-		}
-
-	}
-	*/
 	RenderTestScene();
 	swap->Present(0, 0);
 	return true;
