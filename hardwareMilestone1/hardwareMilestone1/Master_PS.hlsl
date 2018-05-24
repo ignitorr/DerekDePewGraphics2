@@ -57,6 +57,7 @@ struct OUTPUT_VERTEX
 	bool specMap : SPEC;
 	bool multiTex : MULTI;
 	float3 camPos : CAMPOS;
+	float emissive : EMM;
 };
 
 float4 main(OUTPUT_VERTEX vert) : SV_TARGET
@@ -95,6 +96,7 @@ float4 main(OUTPUT_VERTEX vert) : SV_TARGET
 	// END NORMAL MAPPING CODE //
 
 	float4 ambient = final * float4(0.15, 0.15, 0.15, 1);
+	float4 emmFinal = final * float4(vert.emissive, vert.emissive, vert.emissive, 1);
 
 	// DIRECTIONAL LIGHTS
 	for (uint i = 0; i < D_LIGHTS; i++)
@@ -183,5 +185,5 @@ float4 main(OUTPUT_VERTEX vert) : SV_TARGET
 		}
 	}
 
-	return (final * lightFinal) + ambient + specFinal;
+	return (final * lightFinal) + ambient + specFinal + emmFinal;
 }

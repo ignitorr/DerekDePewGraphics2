@@ -19,6 +19,7 @@ struct OUTPUT_VERTEX
 	bool specMap : SPEC;
 	bool multiTex : MULTI;
 	float3 camPos : CAMPOS;
+	float emissive : EMM;
 };
 
 cbuffer THIS_IS_VRAM : register(b0)
@@ -29,6 +30,7 @@ cbuffer THIS_IS_VRAM : register(b0)
 	float4 offset;
 	float4 inm;
 	float4 camPos;
+	float emissive;
 };
 
 OUTPUT_VERTEX main(INPUT_VERTEX fromVertexBuffer)
@@ -58,6 +60,8 @@ OUTPUT_VERTEX main(INPUT_VERTEX fromVertexBuffer)
 
 	newVert.camPos = newVert.worldPos.xyz - camPos.xyz;
 	newVert.camPos = normalize(newVert.camPos);
+
+	newVert.emissive = emissive;
 
 	return newVert;
 }

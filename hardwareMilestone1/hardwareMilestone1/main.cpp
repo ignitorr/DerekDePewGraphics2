@@ -117,6 +117,8 @@ class DEMO_APP
 		ID3D11ShaderResourceView	*meshSpecularMap;
 		ID3D11SamplerState			*meshSampler;
 
+		float						emissiveFactor = 0.0f;
+
 		XMMATRIX getTransformedMatrix()
 		{
 			if (parentMesh != nullptr)
@@ -234,8 +236,9 @@ class DEMO_APP
 	XMMATRIX					viewMSpace;
 	XMMATRIX					projMSpace;
 	XMMATRIX					spaceSkyboxM;
+	ID3D11ShaderResourceView	*spaceSkyboxRV;
 
-	bool						spaceActive = false; //TODO: make this true by default
+	bool						spaceActive = true;
 
 
 	////////////////////
@@ -301,6 +304,7 @@ class DEMO_APP
 		XMFLOAT4 offset;
 		XMFLOAT4 inmData;
 		XMFLOAT4 camPos;
+		float emissive = 0.0f;
 	};
 	//////////////////////////////////
 	// PIXEL CONSTANT BUFFER STRUCT //
@@ -313,6 +317,7 @@ class DEMO_APP
 	};
 
 	PS_BUFFER_DATA psData;
+	PS_BUFFER_DATA spaceLights;
 
 	float pLightMove = 1.0f;
 
@@ -999,7 +1004,7 @@ bool DEMO_APP::InitializeTestMeshes()
 	meshes[meshIndex].numIndex = 36;
 	SetMeshMultitexture(&meshes[meshIndex], true, L"dirtMultiTex.dds");
 	SetMeshNormalMap(&meshes[meshIndex], true, L"stoneNormal.dds");
-	//meshes[meshIndex].parentMesh = &meshes[0];
+	meshes[meshIndex].parentMesh = &meshes[0];
 
 	meshes[meshIndex].initialized = true;	
 	meshIndex++;
@@ -1009,10 +1014,7 @@ bool DEMO_APP::InitializeTestMeshes()
 	CreateMeshFromOBJ(meshes, meshIndex, "spacestation.obj", L"spacestation_diffuse.dds");
 	SetMeshSpecularMap(&meshes[meshIndex], true, L"spacestation_specular.dds");
 	meshIndex++;	
-	
 
-
-	
 	
 	meshes[meshIndex].localPos = XMMatrixScaling(0.2f, 0.2f, 0.2f) * XMMatrixIdentity() * XMMatrixTranslation(-1.0f, 1.0f, -3.0f);
 	CreateMeshFromOBJ(meshes, meshIndex, "asteroid.obj", L"asteroid_diffuse.dds");
@@ -1020,11 +1022,6 @@ bool DEMO_APP::InitializeTestMeshes()
 	SetMeshNormalMap(&meshes[meshIndex], true, L"asteroid_normal.dds");
 	meshIndex++;
 	
-
-
-	
-	
-
 	return true;
 }
 
@@ -1050,6 +1047,204 @@ bool DEMO_APP::InitializeTestLights()
 	//psData.directional[0].lightColor = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
 	//psData.point[0].lightColor = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
 	//psData.spot[0].lightColor = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+	return true;
+}
+
+bool DEMO_APP::InitializeSpaceMeshes()
+{
+	//SUN
+	spaceMeshes[spaceIndex].localPos = XMMatrixScaling(0.008f, 0.008f, 0.008f) * XMMatrixIdentity();
+	spaceMeshes[spaceIndex].modifierMatrix = XMMatrixIdentity() * XMMatrixRotationY(XMConvertToRadians(-0.03f));
+	CreateMeshFromOBJ(spaceMeshes, spaceIndex, "earth.obj", L"sun_diffuse.dds");
+	spaceMeshes[spaceIndex].emissiveFactor = 0.7f;
+	spaceIndex++;
+	// draw the earth
+	spaceMeshes[spaceIndex].localPos = XMMatrixIdentity() * XMMatrixScaling(0.25, 0.25f, 0.25f) * XMMatrixTranslation(3500.0f, 0.0f, 0.0f);
+	spaceMeshes[spaceIndex].modifierMatrix = XMMatrixIdentity() * XMMatrixRotationY(XMConvertToRadians(-1.0f));
+	CreateMeshFromOBJ(spaceMeshes, spaceIndex, "earth.obj", L"earth_diffuse.dds");
+	SetMeshSpecularMap(&spaceMeshes[spaceIndex], true, L"earth_specular.dds");
+	spaceMeshes[spaceIndex].parentMesh = &spaceMeshes[0];
+	spaceIndex++;
+
+	//moon
+	spaceMeshes[spaceIndex].localPos = XMMatrixIdentity() * XMMatrixScaling(0.15, 0.15f, 0.15f) * XMMatrixTranslation(700.0f, 0.0f, 0.0f);
+	spaceMeshes[spaceIndex].modifierMatrix = XMMatrixIdentity() * XMMatrixRotationY(XMConvertToRadians(1.5f));
+	CreateMeshFromOBJ(spaceMeshes, spaceIndex, "earth.obj", L"moon_diffuse2.dds");
+	spaceMeshes[spaceIndex].parentMesh = &spaceMeshes[1];
+	spaceIndex++;
+
+	//planet 2
+	spaceMeshes[spaceIndex].localPos = XMMatrixIdentity() * XMMatrixScaling(0.35, 0.35f, 0.35f) * XMMatrixTranslation(-3500.0f, 0.0f, 2000.0f);
+	spaceMeshes[spaceIndex].modifierMatrix = XMMatrixIdentity() * XMMatrixRotationY(XMConvertToRadians(-1.0f));
+	CreateMeshFromOBJ(spaceMeshes, spaceIndex, "newmoon.obj", L"planet_diffuse.dds");
+	spaceMeshes[spaceIndex].parentMesh = &spaceMeshes[0];
+	spaceIndex++;
+
+	//spacestation
+	spaceMeshes[spaceIndex].localPos = XMMatrixIdentity() * XMMatrixScaling(2.5f, 2.5f, 2.5f) * XMMatrixTranslation(1000.0f, 0.0f, -2000.0f);
+	spaceMeshes[spaceIndex].modifierMatrix = XMMatrixIdentity() * XMMatrixRotationY(XMConvertToRadians(0.5f));
+	CreateMeshFromOBJ(spaceMeshes, spaceIndex, "spacestation.obj", L"spacestation_diffuse.dds");
+	SetMeshSpecularMap(&spaceMeshes[spaceIndex], true, L"spacestation_specular.dds");
+	spaceMeshes[spaceIndex].parentMesh = &spaceMeshes[0];
+	spaceIndex++;
+
+	// asteroids
+	spaceMeshes[spaceIndex].localPos = XMMatrixScaling(10.0f, 10.02f, 10.0f) * XMMatrixIdentity() * XMMatrixTranslation(-2000.0f, 0.0f, -500.0f);
+	spaceMeshes[spaceIndex].modifierMatrix = XMMatrixIdentity() * XMMatrixRotationY(XMConvertToRadians(-1.0f));
+	CreateMeshFromOBJ(spaceMeshes, spaceIndex, "asteroid.obj", L"asteroid_diffuse.dds");
+	SetMeshSpecularMap(&spaceMeshes[spaceIndex], true, L"asteroid_specular.dds");
+	SetMeshNormalMap(&spaceMeshes[spaceIndex], true, L"asteroid_normal.dds");
+	spaceMeshes[spaceIndex].parentMesh = &spaceMeshes[0];
+	SetMeshInstancing(&spaceMeshes[spaceIndex], true, XMFLOAT4(0.1f, 0, -0.5f, 0), 6);
+	//spaceMeshes[spaceIndex].emissiveFactor = 0.7f;
+	spaceIndex++;
+
+	return true;
+}
+
+bool DEMO_APP::InitializeSpaceLights()
+{
+	spaceLights.directional[0].lightDirection = XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f);
+	spaceLights.directional[0].lightColor = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
+
+	spaceLights.point[0].lightColor = XMFLOAT4(0.8f, 0.6f, 0.2f, 1.0f);
+	spaceLights.point[0].lightPos = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+	spaceLights.point[0].lightRad = 250.0f;
+
+	spaceLights.spot[0].lightDirection = XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f);
+	spaceLights.spot[0].lightColor = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	spaceLights.spot[0].lightPos = XMFLOAT4(-1.5f, 3.0f, 0.0f, 1.0f);
+	spaceLights.spot[0].lightRad = 100.0f;
+	spaceLights.spot[0].outerConeRatio = 0.96f;
+	spaceLights.spot[0].innerConeRatio = 0.98f;
+
+	spaceLights.directional[0].lightColor = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+	//psData.point[0].lightColor = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+	spaceLights.spot[0].lightColor = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+
+	return true;
+}
+
+bool DEMO_APP::RenderSpaceScene()
+{
+	double time = timer.TotalTime();
+	UINT strides = sizeof(SIMPLE_VERTEX);
+	UINT offsets = 0;
+
+	D3D11_MAPPED_SUBRESOURCE vsSub;
+	D3D11_MAPPED_SUBRESOURCE psSub;
+
+
+	VS_MASTER_DATA masterData;
+	masterData.view = viewMSpace;
+	masterData.proj = projMSpace;
+	// set camera pos for specular data
+	XMVECTOR currentCamPos = XMMatrixInverse(0, viewM).r[3];
+	XMStoreFloat4(&masterData.camPos, currentCamPos);
+
+	XMMATRIX spinM = XMMatrixRotationX(-timer.Delta() * 0.1f);
+	XMMATRIX dirSpin = XMMatrixRotationY(-timer.Delta());
+	XMMATRIX orbitM = XMMatrixRotationY(-time * 2.0f);
+	XMMATRIX translateM = XMMatrixTranslation(-1.5f, 3.0f, 0.0f);
+
+	XMVECTOR scale, rot, trans;
+	XMVECTOR axis;
+	float angle;
+
+
+	context->OMSetRenderTargets(1, &rtv, depthStencilView);
+	context->RSSetViewports(1, &spaceViewport);
+	context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+
+	// SKYBOX FIRST
+	context->VSSetShader(skyboxVS, 0, 0);
+	context->PSSetShader(skyboxPS, 0, 0);
+	context->VSSetConstantBuffers(0, 1, &skyboxConstantBuffer);
+	context->PSSetConstantBuffers(0, 1, &pixelConstantBuffer);
+	context->IASetVertexBuffers(0, 1, &skyboxVBuffer, &strides, &offsets);
+	context->IASetIndexBuffer(skyboxIBuffer, DXGI_FORMAT_R16_UINT, 0);
+	context->PSSetShaderResources(0, 1, &spaceSkyboxRV);
+	context->PSSetSamplers(0, 1, &skyboxSampler);
+
+
+	SKYBOX_VS_DATA skyVSData;
+	XMVECTOR camPos = spaceSkyboxM.r[3];
+	XMFLOAT3 camPosF;
+	XMStoreFloat3(&camPosF, camPos);
+	skyVSData.cameraPos = camPosF;
+	skyVSData.world = spaceSkyboxM;
+	skyVSData.view = viewMSpace;
+	skyVSData.proj = projMSpace;
+
+	context->Map(skyboxConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
+	memcpy(vsSub.pData, &skyVSData, sizeof(skyVSData));
+	context->Unmap(skyboxConstantBuffer, NULL);
+
+	context->DrawIndexed(36, 0, 0);
+	
+	// CLEAR DEPTH TO 1.0
+	context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
+
+	////////////////
+	// MAIN SCENE //
+	////////////////
+	context->VSSetShader(masterVS, 0, 0);
+	context->PSSetShader(masterPS, 0, 0);
+	context->VSSetConstantBuffers(0, 1, &masterConstantBuffer);
+
+	context->PSSetConstantBuffers(0, 1, &pixelConstantBuffer);
+
+	context->Map(pixelConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &psSub);
+	memcpy(psSub.pData, &spaceLights, sizeof(spaceLights));
+	context->Unmap(pixelConstantBuffer, NULL);
+
+	for (int i = 0; i < spaceIndex; i++)
+	{
+		context->IASetVertexBuffers(0, 1, &spaceMeshes[i].vBuffer, &strides, &offsets);
+		context->IASetIndexBuffer(spaceMeshes[i].iBuffer, DXGI_FORMAT_R16_UINT, 0);
+		if (spaceMeshes[i].multiTexture)
+		{
+			context->PSSetShaderResources(0, 2, spaceMeshes[i].meshTexture);
+		}
+		else
+		{
+			context->PSSetShaderResources(0, 1, &spaceMeshes[i].meshTexture[0]);
+		}
+		if (spaceMeshes[i].normalMap)
+			context->PSSetShaderResources(2, 1, &spaceMeshes[i].meshNormalMap);
+		if (spaceMeshes[i].specularMap)
+			context->PSSetShaderResources(3, 1, &spaceMeshes[i].meshSpecularMap);
+
+		context->PSSetSamplers(0, 1, &spaceMeshes[i].meshSampler);
+
+		spaceMeshes[i].localPos = (spaceMeshes[i].modifierMatrix) * spaceMeshes[i].localPos;
+		XMMatrixDecompose(&scale, &rot, &trans, spaceMeshes[i].modifierMatrix);
+		XMQuaternionToAxisAngle(&axis, &angle, rot);
+		XMMATRIX translat = XMMatrixTranslationFromVector(trans);
+		spaceMeshes[i].localPos = (XMMatrixRotationQuaternion(timer.Delta() * rot) * spaceMeshes[i].localPos);
+		masterData.world = spaceMeshes[i].getTransformedMatrix();
+		//masterData.world = meshes[i].localPos;
+
+		masterData.offset = spaceMeshes[i].instanceOffset;
+		masterData.inmData = XMFLOAT4((float)spaceMeshes[i].instanced, (float)spaceMeshes[i].normalMap, (float)spaceMeshes[i].multiTexture, (float)spaceMeshes[i].specularMap);
+
+		masterData.emissive = spaceMeshes[i].emissiveFactor;
+
+		context->Map(masterConstantBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &vsSub);
+		memcpy(vsSub.pData, &masterData, sizeof(masterData));
+		context->Unmap(masterConstantBuffer, NULL);
+
+		if (spaceMeshes[i].instanced)
+		{
+			context->DrawIndexedInstanced(spaceMeshes[i].numIndex, spaceMeshes[i].instanceCount, 0, 0, 0);
+		}
+		else
+		{
+			context->DrawIndexed(spaceMeshes[i].numIndex, 0, 0);
+		}
+	}
+
 	return true;
 }
 
@@ -1523,7 +1718,8 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 
 	projMSpace = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), BACKBUFFER_WIDTH / (FLOAT)BACKBUFFER_HEIGHT, 0.01f, 100.0f);
 
-	spaceSkyboxM = XMMatrixIdentity();
+	spaceSkyboxM = XMMatrixIdentity() * XMMatrixScaling((float)SKYBOX_SCALE, (float)SKYBOX_SCALE, (float)SKYBOX_SCALE);
+	CreateDDSTextureFromFile(device, L"spaceSkybox.dds", nullptr, &spaceSkyboxRV);
 	
 	// SPACE VIEWPORT
 	spaceViewport.Width = BACKBUFFER_WIDTH;
@@ -1536,6 +1732,9 @@ DEMO_APP::DEMO_APP(HINSTANCE hinst, WNDPROC proc)
 	// MESHES & LIGHTS
 	InitializeTestLights();
 	InitializeTestMeshes();
+
+	InitializeSpaceMeshes();
+	InitializeSpaceLights();
 }
 
 //************************************************************
@@ -1560,7 +1759,7 @@ bool DEMO_APP::Run()
 	context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
 	if (spaceActive)
 	{
-
+		RenderSpaceScene();
 	}
 	else
 	{
@@ -1607,9 +1806,9 @@ bool DEMO_APP::ShutDown()
 	skyboxRV->Release();
 	skyboxSampler->Release();
 	skyboxConstantBuffer->Release();
-//	rState->Release();
+	//	rState->Release();
 
-	// release instancing data
+		// release instancing data
 	for (int i = 0; i < currentInstanceIndex; i++) //only loop to current index, otherwise out of bounds
 	{
 		instanceVertexBuffers[i]->Release();
@@ -1652,7 +1851,12 @@ bool DEMO_APP::ShutDown()
 	masterVS->Release();
 	masterPS->Release();
 	masterConstantBuffer->Release();
-	
+
+	for (int i = 0; i < spaceIndex; i++)
+	{
+		spaceMeshes[i].Shutdown();
+	}
+	spaceSkyboxRV->Release();
 
 	UnregisterClass(L"DirectXApplication", application);
 	return true;
@@ -1764,22 +1968,35 @@ bool DEMO_APP::MoveCamera()
 		XMMATRIX xSpin = XMMatrixRotationX(-cursY);
 		XMMATRIX ySpin = XMMatrixRotationY(cursX);
 
-		XMVECTOR temp = worldViewM.r[3];
-		worldViewM.r[3] = XMLoadFloat4(&XMFLOAT4(0, 0, 0, 1));
+		if (spaceActive)
+		{
+			XMVECTOR temp = worldSpaceView.r[3];
+			worldSpaceView.r[3] = XMLoadFloat4(&XMFLOAT4(0, 0, 0, 1));
 
-		worldViewM = xSpin * worldViewM;
-		worldViewM = worldViewM * ySpin;
-		
-		worldViewM.r[3] = temp;
+			worldSpaceView = xSpin * worldSpaceView;
+			worldSpaceView = worldSpaceView * ySpin;
 
-		// new second viewport
-		XMVECTOR temp2 = worldViewM2.r[3];
-		worldViewM2.r[3] = XMLoadFloat4(&XMFLOAT4(0, 0, 0, 1));
+			worldSpaceView.r[3] = temp;
+		}
+		else
+		{
+			XMVECTOR temp = worldViewM.r[3];
+			worldViewM.r[3] = XMLoadFloat4(&XMFLOAT4(0, 0, 0, 1));
 
-		worldViewM2 = xSpin * worldViewM2;
-		worldViewM2 = worldViewM2 * ySpin;
+			worldViewM = xSpin * worldViewM;
+			worldViewM = worldViewM * ySpin;
 
-		worldViewM2.r[3] = temp2;
+			worldViewM.r[3] = temp;
+
+			// new second viewport
+			XMVECTOR temp2 = worldViewM2.r[3];
+			worldViewM2.r[3] = XMLoadFloat4(&XMFLOAT4(0, 0, 0, 1));
+
+			worldViewM2 = xSpin * worldViewM2;
+			worldViewM2 = worldViewM2 * ySpin;
+
+			worldViewM2.r[3] = temp2;
+		}
 	}
 	// start camera movement
 	XMFLOAT3 translation
@@ -1799,7 +2016,7 @@ bool DEMO_APP::MoveCamera()
 	if (spaceActive)
 	{
 		worldSpaceView = translate * worldSpaceView;
-		worldSpaceView = XMMatrixInverse(0, worldSpaceView);
+		viewMSpace = XMMatrixInverse(0, worldSpaceView);
 
 		spaceSkyboxM.r[3] = worldSpaceView.r[3];
 	}
@@ -1820,6 +2037,7 @@ bool DEMO_APP::MoveCamera()
 	swap->GetDesc(&current);
 	
 	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), (float)current.BufferDesc.Width*0.5f / (float)current.BufferDesc.Height, 0.01f, 100.0f);
+	projMSpace = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), (float)current.BufferDesc.Width / (float)current.BufferDesc.Height, 0.01f, 10000.0f);
 
 	prev = cursorPos;
 	return true;
@@ -1871,7 +2089,7 @@ bool DEMO_APP::ResizeWindow()
 
 
 	projM = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), viewport.Width * 0.5f / viewport.Height, 0.1f, 100.0f);
-	projMSpace = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), spaceViewport.Width / spaceViewport.Height, 0.1f, 100.0f);
+	projMSpace = XMMatrixPerspectiveFovLH(XMConvertToRadians(currentFOV), spaceViewport.Width / spaceViewport.Height, 0.1f, 10000.0f);
 
 	depthStencil->Release();
 	depthStencilView->Release();
